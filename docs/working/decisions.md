@@ -24,5 +24,12 @@
 ## D4 — Card identity
 Card id = uuid; duplicate-guard on (sceneId, selectedIntent, improvedUtterance). Same scene with different intent always creates a new card (acceptance A4).
 
+## D6 — AI provider cost policy (user directive 2026-07-02)
+Prefer free APIs; among free candidates pick the best performance.
+- Default: `AI_PROVIDER=mock` — zero cost, deterministic, full principal flow.
+- Real AI: `AI_PROVIDER=gemini` using Google Gemini API free tier, model `gemini-2.5-flash` (best-performing free-tier structured-output model; JSON schema output supported). Key via `GEMINI_API_KEY`, server-side only.
+- Speech-to-text: browser Web Speech API (free, on-device/vendor-provided) — no paid STT.
+- Anthropic provider: NOT included in MVP (paid); interface stays replaceable so it can be added later.
+
 ## D5 — Mastery stages
 0: JA shown; 1: JA collapsed (tap to reveal); 2: EN + scene only; 3: scene only. Review success advances stage, failure regresses one. Temporary reveal never changes stage.
