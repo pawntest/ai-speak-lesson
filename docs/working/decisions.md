@@ -31,6 +31,13 @@ Prefer free APIs; among free candidates pick the best performance.
 - Speech-to-text: browser Web Speech API (free, on-device/vendor-provided) — no paid STT.
 - Anthropic provider: NOT included in MVP (paid); interface stays replaceable so it can be added later.
 
+## D7 — Experience quality bar (user directive 2026-07-02)
+The user's end goal is speaking the target language without struggle; the loop must feel exceptionally comfortable and be learning-effective.
+- Zero-friction loop: mic/text ready without extra taps; one-tap retry from the decisive moment; one-tap "same scene, different intention"; auto-focus inputs; Enter submits.
+- Comfort: encouraging, non-punishing feedback tone; no scores/red X; latency masked by in-scene animation (NPC keeps living while waiting); graceful JA-friendly errors.
+- Effectiveness: retry immediately after seeing the diff (speak it out loud now); Today screen surfaces due reviews (lowest mastery first); mastery progress visible as gentle stage indicator; NPC lines spoken aloud (speechSynthesis) with replay button for listening practice.
+- Accessibility/comfort details: large tap targets, readable type, reduced-motion respect, works one-handed on mobile.
+
 ## D5 — Mastery stages
 0: JA shown; 1: JA collapsed (tap to reveal); 2: EN + scene only; 3: scene only. Review success advances stage, failure regresses one. Temporary reveal never changes stage.
 
