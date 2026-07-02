@@ -8,28 +8,35 @@
  */
 import { useCallback, useEffect, useReducer, useState } from "react";
 import type { Scene } from "../../shared/types";
-import { evaluateRetry, fetchIntentOptions, improve, respond } from "../api";
+import { evaluateRetry, fetchIntentOptions, improve, respond, QuotaExceededError } from "../api";
 import { cardStore } from "../store/cards";
 import { flowReducer, initialFlowState } from "../flow";
 import SceneStage from "../components/SceneStage";
 import MicInput from "../components/MicInput";
 import EnglishLine from "../components/EnglishLine";
+import UpsellPanel, { type UpsellReason } from "../components/UpsellPanel";
 
 const SERVER_NOT_READY = "サーバーの準備がまだ整っていないみたいです。";
 
+/** D8: free plan saves up to 10 cards (server enforces the coach quota). */
+export const FREE_CARD_LIMIT = 10;
+
 interface SceneFlowProps {
   scene: Scene;
+  licensed: boolean;
+  onLicensed(): void;
   onExit(): void;
   onCardsChanged(): void;
 }
 
-export default function SceneFlow({ scene, onExit, onCardsChanged }: SceneFlowProps) {
+export default function SceneFlow({ scene, licensed, onLicensed, onExit, onCardsChanged }: SceneFlowProps) {
   const [state, dispatch] = useReducer(flowReducer, initialFlowState);
   const [busy, setBusy] = useState(false);
   const [optionsBusy, setOptionsBusy] = useState(false);
   const [replayKey, setReplayKey] = useState(0);
   const [savedCardId, setSavedCardId] = useState<string | null>(null);
   const [freeIntent, setFreeIntent] = useState("");
+  const [upsell, setUpsell] = useState<UpsellReason | null>(null);
 
   const { phase } = state;
 
@@ -80,8 +87,13 @@ export default function SceneFlow({ scene, onExit, onCardsChanged }: SceneFlowPr
       const improvement = await improve(scene.id, state.utterance, trimmed);
       dispatch({ type: "IMPROVEMENT_LOADED", improvement });
       setSavedCardId(null);
-    } catch {
-      dispatch({ type: "IMPROVE_FAILED" });
+      setUpsell(null);
+    } catch (error) {
+      if (error instanceof QuotaExceededError) {
+        setUpsell("quota");
+      } else {
+        dispatch({ type: "IMPROVE_FAILED" });
+      }
     } finally {
       setBusy(false);
     }
@@ -107,6 +119,10 @@ export default function SceneFlow({ scene, onExit, onCardsChanged }: SceneFlowPr
 
   function handleSave() {
     if (!state.improvement) return;
+    if (!licensed && cardStore.listCards().length >= FREE_CARD_LIMIT) {
+      setUpsell("cards");
+      return;
+    }
     const card = cardStore.saveCard({
       sceneId: scene.id,
       originalUtterance: state.improvement.originalUtterance,
@@ -124,6 +140,11 @@ export default function SceneFlow({ scene, onExit, onCardsChanged }: SceneFlowPr
     dispatch({ type: "ANOTHER_INTENT" });
     setSavedCardId(null);
     setFreeIntent("");
+  }
+
+  function handleActivated() {
+    onLicensed();
+    setUpsell(null);
   }
 
   const saved = savedCardId !== null;
@@ -241,6 +262,7 @@ export default function SceneFlow({ scene, onExit, onCardsChanged }: SceneFlowPr
               </div>
             )}
             {busy && <p className="soft-hint">この場面に合う言い方をさがしています…</p>}
+            {upsell === "quota" && <UpsellPanel reason="quota" onActivated={handleActivated} />}
           </div>
         )}
 
@@ -288,6 +310,7 @@ export default function SceneFlow({ scene, onExit, onCardsChanged }: SceneFlowPr
                 </button>
               </div>
             </div>
+            {upsell === "cards" && <UpsellPanel reason="cards" onActivated={handleActivated} />}
           </div>
         )}
 
@@ -336,6 +359,7 @@ export default function SceneFlow({ scene, onExit, onCardsChanged }: SceneFlowPr
                 今日の場面へ戻る
               </button>
             </div>
+            {upsell === "cards" && <UpsellPanel reason="cards" onActivated={handleActivated} />}
           </div>
         )}
       </section>

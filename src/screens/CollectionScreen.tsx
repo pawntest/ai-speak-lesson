@@ -8,11 +8,20 @@ import StageDots from "../components/StageDots";
 interface CollectionScreenProps {
   cards: Card[];
   scenes: Scene[] | null;
+  licensed: boolean;
   onOpenCard(cardId: string): void;
   onGoToday(): void;
+  onOpenPro(): void;
 }
 
-export default function CollectionScreen({ cards, scenes, onOpenCard, onGoToday }: CollectionScreenProps) {
+export default function CollectionScreen({
+  cards,
+  scenes,
+  licensed,
+  onOpenCard,
+  onGoToday,
+  onOpenPro,
+}: CollectionScreenProps) {
   const sceneTitle = (sceneId: string) =>
     scenes?.find((s) => s.id === sceneId)?.title ?? sceneId;
 
@@ -28,7 +37,10 @@ export default function CollectionScreen({ cards, scenes, onOpenCard, onGoToday 
   return (
     <div className="screen collection">
       <header className="app-header">
-        <h1 className="today-title">コレクション</h1>
+        <h1 className="today-title">
+          コレクション
+          {licensed && <span className="pro-chip">Pro</span>}
+        </h1>
         <p className="today-sub">
           {cards.length > 0 ? `場面から生まれたカード ${cards.length}枚` : "場面から生まれた気づきが、ここに集まります。"}
         </p>
@@ -63,6 +75,14 @@ export default function CollectionScreen({ cards, scenes, onOpenCard, onGoToday 
           </div>
         </section>
       ))}
+
+      {!licensed && (
+        <footer className="pro-entry">
+          <button type="button" className="ghost-btn subtle" onClick={onOpenPro}>
+            Proについて — 無制限のコーチとカード
+          </button>
+        </footer>
+      )}
     </div>
   );
 }

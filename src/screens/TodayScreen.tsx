@@ -21,6 +21,7 @@ interface TodayScreenProps {
   scenes: Scene[] | null;
   scenesFailed: boolean;
   cards: Card[];
+  licensed: boolean;
   onOpenScene(scene: Scene): void;
   onOpenCard(cardId: string): void;
   onRetryScenes(): void;
@@ -30,6 +31,7 @@ export default function TodayScreen({
   scenes,
   scenesFailed,
   cards,
+  licensed,
   onOpenScene,
   onOpenCard,
   onRetryScenes,
@@ -42,6 +44,7 @@ export default function TodayScreen({
       <header className="app-header">
         <span className="wordmark">
           context <em>diff</em> english
+          {licensed && <span className="pro-chip">Pro</span>}
         </span>
         <h1 className="today-title">今日の場面</h1>
         <p className="today-sub">場面に入って、ひとこと話してみよう。</p>

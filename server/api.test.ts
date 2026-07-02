@@ -4,6 +4,7 @@
  * ephemeral listener and hit it with global fetch.
  */
 import express from "express";
+import { createHmac } from "node:crypto";
 import type { Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -316,6 +317,104 @@ describe("api routes with a misbehaving provider (fallback safety net)", () => {
     });
     expect(retry.status).toBe(200);
     expect(typeof retry.body.communicated).toBe("boolean");
+  });
+});
+
+describe("license activation + improve quota (D8)", () => {
+  const SECRET = "test-license-secret";
+
+  function makeKey(secret: string, email = "buyer@example.com"): string {
+    const date = new Date().toISOString().slice(0, 10).replaceAll("-", "");
+    const payload = `${email}|${date}`;
+    const sig = createHmac("sha256", secret).update(payload).digest("hex").slice(0, 16);
+    return `CDE-${Buffer.from(payload).toString("base64url")}-${sig}`;
+  }
+
+  let server: TestServer;
+  let previousSecret: string | undefined;
+
+  beforeAll(async () => {
+    previousSecret = process.env.LICENSE_SECRET;
+    process.env.LICENSE_SECRET = SECRET;
+    server = await startServer(makeApp());
+  });
+  afterAll(async () => {
+    if (previousSecret === undefined) delete process.env.LICENSE_SECRET;
+    else process.env.LICENSE_SECRET = previousSecret;
+    await server.close();
+  });
+
+  const improveBody = {
+    sceneId: "cafe-order",
+    utterance: "Coffee.",
+    intent: CAFE_INTENT,
+  };
+
+  it("activates a valid key and rejects a tampered one", async () => {
+    const key = makeKey(SECRET);
+    expect((await post(server.url, "/api/license/activate", { key })).body).toEqual({
+      valid: true,
+    });
+
+    const tampered = `${key.slice(0, -1)}${key.endsWith("0") ? "1" : "0"}`;
+    expect((await post(server.url, "/api/license/activate", { key: tampered })).body).toEqual({
+      valid: false,
+    });
+    expect(
+      (await post(server.url, "/api/license/activate", { key: makeKey("other-secret") })).body,
+    ).toEqual({ valid: false });
+    expect((await post(server.url, "/api/license/activate", {})).body).toEqual({ valid: false });
+    expect((await post(server.url, "/api/license/activate", { key: 42 })).status).toBe(200);
+  });
+
+  it("free user: 4th improve of the day → 402 quota_exceeded", async () => {
+    const headers = { "x-client-id": "quota-test-free-user" };
+    for (let i = 0; i < 3; i++) {
+      expect((await post(server.url, "/api/improve", improveBody, headers)).status).toBe(200);
+    }
+    const fourth = await post(server.url, "/api/improve", improveBody, headers);
+    expect(fourth.status).toBe(402);
+    expect(fourth.body).toEqual({ error: "quota_exceeded", limit: 3 });
+  });
+
+  it("valid x-license-key (Pro) → unlimited improves, no 402", async () => {
+    const headers = { "x-client-id": "quota-test-pro-user", "x-license-key": makeKey(SECRET) };
+    for (let i = 0; i < 5; i++) {
+      expect((await post(server.url, "/api/improve", improveBody, headers)).status).toBe(200);
+    }
+  });
+
+  it("invalid x-license-key falls back to the free quota", async () => {
+    const headers = {
+      "x-client-id": "quota-test-fake-pro",
+      "x-license-key": "CDE-not-a-real-key-0123456789abcdef",
+    };
+    for (let i = 0; i < 3; i++) {
+      expect((await post(server.url, "/api/improve", improveBody, headers)).status).toBe(200);
+    }
+    expect((await post(server.url, "/api/improve", improveBody, headers)).status).toBe(402);
+  });
+
+  it("quota does not affect the other endpoints", async () => {
+    const headers = { "x-client-id": "quota-test-free-user" }; // already exhausted above
+    expect(
+      (await post(server.url, "/api/intent-options", { sceneId: "cafe-order", utterance: "Coffee." }, headers))
+        .status,
+    ).toBe(200);
+    expect(
+      (await post(server.url, "/api/respond", { sceneId: "cafe-order", utterance: "Coffee." }, headers))
+        .status,
+    ).toBe(200);
+    expect(
+      (
+        await post(
+          server.url,
+          "/api/evaluate-retry",
+          { sceneId: "cafe-order", intent: CAFE_INTENT, utterance: "I'd like a coffee." },
+          headers,
+        )
+      ).status,
+    ).toBe(200);
   });
 });
 
