@@ -1,0 +1,132 @@
+{
+  "version": 1,
+  "scenarios": [
+    {
+      "id": "cafe-order",
+      "title": "カフェで注文する",
+      "level": "beginner",
+      "scene": {
+        "location": "cafe counter",
+        "visual_cues": [
+          "menu with coffee visible",
+          "cashier looking at the learner",
+          "one customer waiting behind"
+        ],
+        "ambient_cues": [
+          "soft cafe noise",
+          "brief pause after cashier speaks"
+        ],
+        "npc_opening": "What can I get for you?",
+        "felt_targets_for_testing_only": [
+          "slight pressure",
+          "need to respond now",
+          "desire to order"
+        ]
+      },
+      "mock_attempts": [
+        {
+          "user_utterance": "Coffee.",
+          "intent_options": [
+            "コーヒーを注文したかった",
+            "少し待ってほしかった",
+            "おすすめを聞きたかった",
+            "サイズを確認したかった"
+          ],
+          "selected_intent": "コーヒーを注文したかった",
+          "improved_utterance": "I'd like a coffee.",
+          "primary_diff": "I'd like a",
+          "meaning_ja": "自分の希望を丁寧に伝える",
+          "reason_ja": "商品名だけでなく、コーヒーを希望して注文していることを伝えるため"
+        }
+      ]
+    },
+    {
+      "id": "missing-order",
+      "title": "注文が届かない",
+      "level": "beginner",
+      "scene": {
+        "location": "restaurant table",
+        "visual_cues": [
+          "other tables receive food",
+          "learner's table remains empty",
+          "server passes nearby"
+        ],
+        "ambient_cues": [
+          "plates arriving at nearby tables",
+          "short window to call the server"
+        ],
+        "npc_opening": null,
+        "felt_targets_for_testing_only": [
+          "being overlooked",
+          "impatience",
+          "need to get attention"
+        ]
+      },
+      "mock_attempts": [
+        {
+          "user_utterance": "Order?",
+          "intent_options": [
+            "注文状況を確認したかった",
+            "店員に気付いてほしかった",
+            "急いでいると伝えたかった",
+            "注文をキャンセルしたかった"
+          ],
+          "variants": [
+            {
+              "selected_intent": "注文状況を確認したかった",
+              "improved_utterance": "My order?",
+              "primary_diff": "My",
+              "meaning_ja": "自分の注文だと示す",
+              "reason_ja": "何について確認したいのかを店員に伝えるため"
+            },
+            {
+              "selected_intent": "店員に気付いてほしかった",
+              "improved_utterance": "Excuse me.",
+              "primary_diff": "Excuse me",
+              "meaning_ja": "相手の注意を丁寧に向ける",
+              "reason_ja": "注文内容より先に、通り過ぎる店員へ声を掛ける必要があるため"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "did-not-understand",
+      "title": "聞き取れなかった",
+      "level": "beginner",
+      "scene": {
+        "location": "service counter",
+        "visual_cues": [
+          "NPC asks a short question",
+          "learner looks uncertain"
+        ],
+        "ambient_cues": [
+          "moderate background noise",
+          "NPC speaks slightly faster than before"
+        ],
+        "npc_opening": "Would you like a receipt?",
+        "felt_targets_for_testing_only": [
+          "confusion",
+          "need for repetition",
+          "pressure to answer"
+        ]
+      },
+      "mock_attempts": [
+        {
+          "user_utterance": "Again?",
+          "intent_options": [
+            "もう一度言ってほしかった",
+            "ゆっくり話してほしかった",
+            "最後の単語だけ確認したかった",
+            "考える時間がほしかった"
+          ],
+          "selected_intent": "もう一度言ってほしかった",
+          "improved_utterance": "Could you say that again?",
+          "primary_diff": "Could you say that",
+          "meaning_ja": "相手に同じ内容をもう一度言ってもらう",
+          "reason_ja": "聞き取れなかった内容全体を丁寧に繰り返してもらうため"
+        }
+      ]
+    }
+  ]
+}
