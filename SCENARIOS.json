@@ -127,6 +127,95 @@
           "reason_ja": "聞き取れなかった内容全体を丁寧に繰り返してもらうため"
         }
       ]
+    },
+    {
+      "id": "asking-directions",
+      "title": "道を聞く",
+      "level": "beginner",
+      "scene": {
+        "location": "street corner",
+        "visual_cues": [
+          "unfamiliar street signs",
+          "a passerby walking closer",
+          "station nowhere in sight"
+        ],
+        "ambient_cues": [
+          "steady street traffic",
+          "footsteps approaching, about to pass"
+        ],
+        "npc_opening": null,
+        "felt_targets_for_testing_only": [
+          "disorientation",
+          "hesitation to stop a stranger",
+          "need for directions"
+        ]
+      },
+      "mock_attempts": [
+        {
+          "user_utterance": "Station?",
+          "intent_options": [
+            "駅への行き方を知りたかった",
+            "相手を呼び止めたかった",
+            "駅が近いか確認したかった",
+            "地図で示してほしかった"
+          ],
+          "variants": [
+            {
+              "selected_intent": "駅への行き方を知りたかった",
+              "improved_utterance": "How can I get to the station?",
+              "primary_diff": "How can I get to",
+              "meaning_ja": "「どうやって〜へ行けますか」と道順をたずねる形",
+              "reason_ja": "場所の名前だけでなく、行き方を教えてほしいのだと伝えるため"
+            },
+            {
+              "selected_intent": "相手を呼び止めたかった",
+              "improved_utterance": "Excuse me.",
+              "primary_diff": "Excuse me",
+              "meaning_ja": "「すみません」と相手の注意を丁寧に向ける一言",
+              "reason_ja": "道をたずねる前に、通り掛かる人に立ち止まってもらう必要があるため"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "hotel-checkin",
+      "title": "ホテルでチェックイン",
+      "level": "beginner",
+      "scene": {
+        "location": "hotel front desk",
+        "visual_cues": [
+          "clerk smiling behind the counter",
+          "suitcase at the learner's side",
+          "room keys on the wall behind"
+        ],
+        "ambient_cues": [
+          "quiet lobby music",
+          "clerk waiting for a reply"
+        ],
+        "npc_opening": "Good evening. How can I help you?",
+        "felt_targets_for_testing_only": [
+          "travel fatigue",
+          "mild formality pressure",
+          "desire to settle in"
+        ]
+      },
+      "mock_attempts": [
+        {
+          "user_utterance": "Check in.",
+          "intent_options": [
+            "チェックインの手続きをしたかった",
+            "予約を確認してほしかった",
+            "荷物を預けたかった",
+            "チェックイン時間を確認したかった"
+          ],
+          "selected_intent": "チェックインの手続きをしたかった",
+          "improved_utterance": "I'd like to check in.",
+          "primary_diff": "I'd like to",
+          "meaning_ja": "「〜したいです」と自分の用件を丁寧に伝える形",
+          "reason_ja": "単語だけでなく、手続きを望んで申し出ているとフロントに伝えるため"
+        }
+      ]
     }
   ]
 }
