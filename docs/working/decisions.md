@@ -38,6 +38,13 @@ The user's end goal is speaking the target language without struggle; the loop m
 - Effectiveness: retry immediately after seeing the diff (speak it out loud now); Today screen surfaces due reviews (lowest mastery first); mastery progress visible as gentle stage indicator; NPC lines spoken aloud (speechSynthesis) with replay button for listening practice.
 - Accessibility/comfort details: large tap targets, readable type, reduced-motion respect, works one-handed on mobile.
 
+## D8 — Monetization (user goal 2026-07-02: ≥¥10,000/month)
+User directive overrides the contract's "no payment" scope item. Design in docs/working/monetization.md.
+- Freemium: Free = 3 improvements/day + 10 saved cards; Pro ¥600/月 = unlimited + Gemini dynamic coaching. 17–18 subscribers reach the goal.
+- Rails: Stripe Payment Link URL via `VITE_UPGRADE_URL` (display-only, no secret); unlock via HMAC license keys (`LICENSE_SECRET` server-side, generator script `scripts/generate-license.mjs`).
+- Enforcement server-side: `/api/improve` checks Pro license or daily quota; over-quota returns 402 with upgrade info. New endpoint `POST /api/license/activate` validates a key.
+- Funnel is gentle (D7): core loop stays free; upsell only at quota/save limits and a quiet Pro entry in Collection.
+
 ## D5 — Mastery stages
 0: JA shown; 1: JA collapsed (tap to reveal); 2: EN + scene only; 3: scene only. Review success advances stage, failure regresses one. Temporary reveal never changes stage.
 
