@@ -33,3 +33,14 @@ Prefer free APIs; among free candidates pick the best performance.
 
 ## D5 — Mastery stages
 0: JA shown; 1: JA collapsed (tap to reveal); 2: EN + scene only; 3: scene only. Review success advances stage, failure regresses one. Temporary reveal never changes stage.
+
+## Foundation notes
+- Two flat tsconfig projects (`tsconfig.app.json`: src+shared with DOM libs; `tsconfig.server.json`: server+shared with node types); `npm run typecheck` runs both. Root `tsconfig.json` is references-only for editors. Test files live under src/server so they typecheck with their project; the foundation smoke test is `src/foundation.smoke.test.ts` (it needs DOM types for the CardStore).
+- Routes module exports a factory `createApiRouter(): Router` from `server/routes/index.ts` (not a bare Router instance) so the AI implementer can inject providers later without changing `server/index.ts`. `server/index.ts` also exports `createApp()` for supertest-style route tests.
+- Raw fixtures loader: `loadRawScenarios()` in `server/fixtures.ts` (cached, loosely typed). Scene mapping is an explicit allowlist in `server/scenes.ts` — `felt_targets_for_testing_only` and `mock_attempts` can never leak to `/api/scenes` (verified by curl).
+- Added `RespondResult` ({ npcReply, completionNote }) to shared/types.ts to type the D3 `/api/respond` response; `DiffAligner` interface deferred to the AI implementer (not in the frozen shared surface per foundation scope).
+- CardStore: `createCardStore(storage?)` factory + `cardStore` default export. `updateMastery(cardId, success)` changes stage only; `recordReview(cardId, success)` appends a ReviewEntry AND applies the stage change (UI should call recordReview per review; temporary JA reveal calls neither). New cards start at masteryStage 0. Non-browser envs fall back to in-memory storage.
+- `ReviewEntry` = { reviewedAt: ISO string, success: boolean, stageAfter: MasteryStage }; Card timestamps are ISO strings (JSON-safe in localStorage).
+- Zod: `intentOptionsResultSchema` enforces 3–5 non-empty options; schemas use `satisfies z.ZodType<T>` so they cannot drift from shared/types.ts.
+- Prod `start`/`preview` run the TS server via tsx (`node --import tsx server/index.ts`) — no separate server transpile step in MVP. Server serves dist/ only when it exists and SPA-fallbacks non-/api GETs.
+- api.ts throws `ApiError` (has `.status`) on non-2xx and parses `{ error }` bodies into the message.
