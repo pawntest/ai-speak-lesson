@@ -69,3 +69,16 @@ User directive overrides the contract's "no payment" scope item. Design in docs/
 - Route hardening: request bodies zod-validated (400), unknown sceneId → 404; responses rebuilt key-by-key so intent-options can never carry improvement fields and `felt_targets` can never leak (both under test).
 - D8 (server/license.ts): `validateLicenseKey` recomputes HMAC-SHA256 over the base64url payload with `LICENSE_SECRET`, timing-safe compare of the 16-hex prefix; missing secret ⇒ always invalid, never a crash (a test execs the real scripts/generate-license.mjs to prevent scheme drift). `POST /api/license/activate` { key } → { valid }. Quota: /api/improve only — free (no/invalid `x-license-key`) = 3/day per `x-client-id` (missing header ⇒ one shared anonymous bucket), over ⇒ 402 { error: "quota_exceeded", limit: 3 }; valid license ⇒ unlimited. KNOWN MVP LIMITATION: quota is in-memory per process, so a server restart resets the daily counters.
 - Tests live in server/**/*.test.ts (42 tests). No supertest dependency added: route tests run the real router on an ephemeral listener (`app.listen(0)`) and use global fetch; test requests send unique `x-client-id`s so the D8 quota never bleeds between tests.
+
+## D9 — First-utterance adequacy (user feedback 2026-07-04)
+「正解できているなら選択肢を選ぶ必要はない」。/api/respond now returns `adequate` + `adequacyNote`.
+- Judged conservatively (fixture-overlap >= 0.8 or request-frame + content word); communicative adequacy ONLY — the AI still never decides the user's intention (invariant 1 intact).
+- UI: adequate → celebration panel (次の場面へ / それでも振り返ってみる); reflection becomes optional, never forced. Improvement still requires explicit intent selection (A2 intact).
+- Intent options are now utterance-aware (発話対応): cue-derived candidates from the learner's words come first, scene-generic fillers complete the set.
+
+## D10 — First-person 3D scenes (user feedback 2026-07-04)
+一人称3D+三人称ワイプ。three.js (lazy chunk ~133KB gz, loaded only when a stage mounts).
+- Declarative SceneSpec3D in src/scene3d/specs.ts: room geometry + emoji-billboard actors/props + fpv/third cameras + staged entrances/idle anims. New scene = one spec entry; unknown ids synthesize a generic spec → 量産可能.
+- One WebGLRenderer, two scissored viewports: main = FPV (体感), top-right wipe = third person incl. learner avatar (英文を考える視点). Tap wipe to enlarge/shrink; wipe z-index 7 keeps it tappable under the NPC bubble.
+- prefers-reduced-motion → static frames, no RAF loop. No WebGL → automatic fallback to the 2D emoji stage (kept intact).
+- Known trap fixed: back wall must sit at floor-center − depth/2 (was hiding NPC/props in both views).

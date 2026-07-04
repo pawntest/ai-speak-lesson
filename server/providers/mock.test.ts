@@ -80,6 +80,50 @@ describe("MockProvider intent options", () => {
   });
 });
 
+describe("MockProvider utterance-aware options (発話対応)", () => {
+  const provider = new MockProvider();
+
+  it("different utterances yield correspondingly different option sets", async () => {
+    const drink = await provider.getIntentOptions(cafe, "Tea now");
+    const direction = await provider.getIntentOptions(cafe, "Station way go");
+    expect(drink.options).toContain("それを注文したかった");
+    expect(direction.options).toContain("行き方・場所を知りたかった");
+    expect(drink.options).not.toEqual(direction.options);
+  });
+
+  it("question-shaped utterances surface a confirming intent", async () => {
+    const result = await provider.getIntentOptions(cafe, "Big size?");
+    expect(result.options).toContain("質問をして確かめたかった");
+  });
+});
+
+describe("MockProvider first-utterance adequacy (D9)", () => {
+  const provider = new MockProvider();
+
+  it("an already-adequate utterance is celebrated, never completed", async () => {
+    const result = await provider.respond(cafe, "I'd like a coffee.");
+    expect(result.adequate).toBe(true);
+    expect(result.adequacyNote).toBeTruthy();
+    expect(result.completionNote).toBeNull();
+  });
+
+  it("a fragmentary utterance is not adequate and gets a completion note", async () => {
+    const result = await provider.respond(cafe, "Coffee.");
+    expect(result.adequate).toBe(false);
+    expect(result.adequacyNote).toBeNull();
+    expect(result.completionNote).not.toBeNull();
+  });
+
+  it("a bare frame without content is not adequate (unless it is the scene's fixture answer)", async () => {
+    // In cafe-order, "Excuse me." matches no fixture improvement and carries no content.
+    const inCafe = await provider.respond(cafe, "Excuse me.");
+    expect(inCafe.adequate).toBe(false);
+    // In missing-order, "Excuse me." IS a fixture improvement — adequate there.
+    const inMissingOrder = await provider.respond(noOpening, "Excuse me.");
+    expect(inMissingOrder.adequate).toBe(true);
+  });
+});
+
 describe("guard", () => {
   it("flags long, multi-sentence, non-substring-diff and meaning==reason outputs", () => {
     const base = {

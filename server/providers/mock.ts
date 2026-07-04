@@ -176,18 +176,48 @@ export function ruleBasedImprovement(
   };
 }
 
-/** Deterministic neutral JA options built from scene context (no ranking). */
-function fallbackIntentOptions(scene: Scene): IntentOptionsResult {
-  return {
-    options: [
-      scene.npcOpening
-        ? "相手の言ったことを確認したかった"
-        : "相手に気付いてほしかった",
-      "自分の用件を伝えたかった",
-      "質問をしたかった",
-      "少し時間がほしかった",
-    ],
+/**
+ * Deterministic neutral JA options conditioned on what the learner actually
+ * said (発話対応), so the choices plausibly correspond to the utterance.
+ * Cue-derived candidates come first, scene-generic fillers complete 4 options.
+ */
+function fallbackIntentOptions(scene: Scene, utterance: string): IntentOptionsResult {
+  const norm = normalizeUtterance(utterance);
+  const options: string[] = [];
+  const add = (option: string) => {
+    if (options.length < 5 && !options.includes(option)) options.push(option);
   };
+
+  // Utterance-content cues → corresponding intents.
+  if (/coffee|tea|water|juice|menu|croissant|sandwich|cake|food|drink|order/.test(norm)) {
+    add("それを注文したかった");
+  }
+  if (/again|pardon|sorry|what|repeat|slowly/.test(norm)) {
+    add("もう一度言ってほしかった");
+  }
+  if (/where|way|go|station|street|map|find/.test(norm)) {
+    add("行き方・場所を知りたかった");
+  }
+  if (/check in|checkin|room|reservation|booking/.test(norm)) {
+    add("手続きを進めたかった");
+  }
+  if (/wait|moment|minute|second/.test(norm)) {
+    add("少し待ってほしかった");
+  }
+  if (/excuse me|hello|hi\b/.test(norm)) {
+    add("相手に気付いてほしかった");
+  }
+  if (/[?？]\s*$/.test(utterance.trim())) {
+    add("質問をして確かめたかった");
+  }
+
+  // Scene-generic fillers keep the set at 4 neutral, same-abstraction options.
+  add(scene.npcOpening ? "相手の言ったことを確認したかった" : "相手に気付いてほしかった");
+  add("自分の用件を伝えたかった");
+  add("少し時間がほしかった");
+  add("質問をしたかった");
+
+  return { options: options.slice(0, 4) };
 }
 
 /* -------------------------------------------------------------------------
@@ -241,7 +271,7 @@ export class MockProvider implements AiProvider {
     if (fixtureOptions && fixtureOptions.length >= 3) {
       return Promise.resolve({ options: fixtureOptions.slice(0, 5) });
     }
-    return Promise.resolve(fallbackIntentOptions(scene));
+    return Promise.resolve(fallbackIntentOptions(scene, utterance));
   }
 
   improve(scene: Scene, utterance: string, intent: string): Promise<Improvement> {
@@ -264,9 +294,12 @@ export class MockProvider implements AiProvider {
   }
 
   respond(scene: Scene, utterance: string): Promise<RespondResult> {
-    const words = normalizeUtterance(utterance).split(" ").filter(Boolean);
+    const norm = normalizeUtterance(utterance);
+    const words = norm.split(" ").filter(Boolean);
+    // 発話が既に十分伝わるなら、UIは意図選択を強制せず祝福する(D9)。
+    const adequate = this.judgeAdequate(scene, norm);
     // The NPC "completes" only when the utterance was fragmentary (<= 2 words).
-    const completed = words.length > 0 && words.length <= 2;
+    const completed = !adequate && words.length > 0 && words.length <= 2;
 
     let npcReply: string;
     let completion: string;
@@ -292,7 +325,40 @@ export class MockProvider implements AiProvider {
     return Promise.resolve({
       npcReply,
       completionNote: completed ? completion : null,
+      adequate,
+      adequacyNote: adequate
+        ? "そのひとことで、ちゃんと伝わりました。この場面はもう自分のものです。"
+        : null,
     });
+  }
+
+  /**
+   * Communicative adequacy of the FIRST utterance, judged without any chosen
+   * intention (the AI never decides the intention — only whether the words
+   * already work in this scene). Conservative: fixture-overlap or an explicit
+   * request frame plus content.
+   */
+  private judgeAdequate(scene: Scene, norm: string): boolean {
+    if (!norm) return false;
+
+    const scenario = loadRawScenarios().scenarios.find((s) => s.id === scene.id);
+    if (scenario) {
+      for (const raw of scenario.mock_attempts) {
+        for (const variant of attemptVariants(raw as FixtureAttempt)) {
+          const reference = normalizeUtterance(variant.improved_utterance);
+          if (reference && tokenOverlapRatio(reference, norm) >= 0.8) return true;
+        }
+      }
+    }
+
+    if (REQUEST_FRAMES.some((frame) => norm.includes(frame))) {
+      const content = norm
+        .split(" ")
+        .filter((t) => t.length >= 3 && !FRAME_WORDS.has(t) && !STOP_WORDS.has(t));
+      if (content.length >= 1) return true;
+    }
+
+    return false;
   }
 
   evaluateRetry(scene: Scene, intent: string, utterance: string): Promise<RetryEvaluation> {

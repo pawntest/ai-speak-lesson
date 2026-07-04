@@ -4,7 +4,7 @@
  * (product-summary failure mode 5: malformed AI JSON must never crash the flow).
  */
 import { z } from "zod";
-import type { Improvement, IntentOptionsResult, RetryEvaluation } from "./types";
+import type { Improvement, IntentOptionsResult, RespondResult, RetryEvaluation } from "./types";
 
 export const intentOptionsResultSchema = z.object({
   options: z.array(z.string().min(1)).min(3).max(5),
@@ -23,3 +23,10 @@ export const retryEvaluationSchema = z.object({
   communicated: z.boolean(),
   note: z.string(),
 }) satisfies z.ZodType<RetryEvaluation>;
+
+export const respondResultSchema = z.object({
+  npcReply: z.string().nullable(),
+  completionNote: z.string().nullable(),
+  adequate: z.boolean(),
+  adequacyNote: z.string().nullable(),
+}) satisfies z.ZodType<RespondResult>;

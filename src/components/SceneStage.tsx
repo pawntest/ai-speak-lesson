@@ -8,9 +8,24 @@
  *
  * `replayKey` restarts the whole staging (used to replay the decisive moment).
  */
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import type { Scene } from "../../shared/types";
 import { speakLine } from "../speech";
+
+/** three.js loads in its own chunk only when a stage actually mounts. */
+const Scene3D = lazy(() => import("../scene3d/Scene3D"));
+
+let webglProbe: boolean | null = null;
+function webglAvailable(): boolean {
+  if (webglProbe !== null) return webglProbe;
+  try {
+    const canvas = document.createElement("canvas");
+    webglProbe = Boolean(canvas.getContext("webgl2") ?? canvas.getContext("webgl"));
+  } catch {
+    webglProbe = false;
+  }
+  return webglProbe;
+}
 
 interface SceneStageProps {
   scene: Scene;
@@ -194,6 +209,7 @@ export default function SceneStage({
 }: SceneStageProps) {
   const plan = planFor(scene.id);
   const [openingVisible, setOpeningVisible] = useState(false);
+  const [threeFailed, setThreeFailed] = useState(false);
   const [muted, setMuted] = useState(false);
   const mutedRef = useRef(muted);
   mutedRef.current = muted;
@@ -218,7 +234,13 @@ export default function SceneStage({
 
   return (
     <div className={`stage${compact ? " stage-compact" : ""}`} key={`${scene.id}-${replayKey}`}>
-      <Composition scene={scene} />
+      {webglAvailable() && !threeFailed ? (
+        <Suspense fallback={<Composition scene={scene} />}>
+          <Scene3D scene={scene} replayKey={replayKey} onFailed={() => setThreeFailed(true)} />
+        </Suspense>
+      ) : (
+        <Composition scene={scene} />
+      )}
       <div className="st-vignette" aria-hidden />
       <span className="st-slug">{scene.location}</span>
       <button

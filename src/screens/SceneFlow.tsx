@@ -70,6 +70,8 @@ export default function SceneFlow({ scene, licensed, onLicensed, onExit, onCards
         utterance: text,
         npcReply: result.npcReply,
         completionNote: result.completionNote,
+        adequate: result.adequate,
+        adequacyNote: result.adequacyNote,
       });
     } catch {
       dispatch({ type: "RESPOND_FAILED", utterance: text });
@@ -192,9 +194,27 @@ export default function SceneFlow({ scene, licensed, onLicensed, onExit, onCards
                 {state.completionNote}
               </p>
             )}
-            <button type="button" className="primary-btn" onClick={() => dispatch({ type: "REFLECT" })}>
-              本当は何を伝えたかった？
-            </button>
+            {state.adequate ? (
+              /* D9: the words already worked — celebrate; reflection is optional. */
+              <div className="adequate-block">
+                <div className="verdict verdict-ok">
+                  <span className="verdict-title">伝わりました！</span>
+                  {state.adequacyNote && <p className="verdict-note">{state.adequacyNote}</p>}
+                </div>
+                <div className="actions">
+                  <button type="button" className="primary-btn" onClick={onExit}>
+                    次の場面へ
+                  </button>
+                  <button type="button" className="ghost-btn" onClick={() => dispatch({ type: "REFLECT" })}>
+                    それでも振り返ってみる
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button type="button" className="primary-btn" onClick={() => dispatch({ type: "REFLECT" })}>
+                本当は何を伝えたかった？
+              </button>
+            )}
           </div>
         )}
 

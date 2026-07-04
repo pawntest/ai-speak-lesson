@@ -2,7 +2,7 @@
  * API surface frozen by decision D3.
  *
  *   GET  /api/scenes          → Scene[]
- *   POST /api/respond         → { npcReply, completionNote }  (no coaching here)
+ *   POST /api/respond         → { npcReply, completionNote, adequate, adequacyNote }  (no coaching here)
  *   POST /api/intent-options  → { options }                   (NEVER any improvement)
  *   POST /api/improve         → Improvement
  *   POST /api/evaluate-retry  → RetryEvaluation
@@ -102,6 +102,8 @@ export function createApiRouter(provider: AiProvider = selectProvider()): Router
     res.json({
       npcReply: checked.data.npcReply,
       completionNote: checked.data.completionNote,
+      adequate: checked.data.adequate,
+      adequacyNote: checked.data.adequate ? checked.data.adequacyNote : null,
     });
   });
 

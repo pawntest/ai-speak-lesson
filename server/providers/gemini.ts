@@ -57,8 +57,10 @@ const RESPOND_SCHEMA = {
   properties: {
     npcReply: { type: "STRING", nullable: true },
     completionNote: { type: "STRING", nullable: true },
+    adequate: { type: "BOOLEAN" },
+    adequacyNote: { type: "STRING", nullable: true },
   },
-  required: ["npcReply"],
+  required: ["npcReply", "adequate"],
 };
 
 const RETRY_SCHEMA = {
@@ -183,11 +185,26 @@ export class GeminiProvider implements AiProvider {
         "Reply in character with ONE short, natural, friendly English sentence (npcReply).",
         "You may charitably complete a fragmentary utterance from context.",
         "If you completed/guessed anything, describe briefly in Japanese what you assumed (completionNote); otherwise set completionNote to null.",
+        "Also judge `adequate`: true ONLY if the learner's words already communicate clearly",
+        "and naturally enough for this scene that no rewording is needed.",
+        "Judge communicative adequacy only — NEVER guess or decide the learner's intention.",
+        "If adequate, give one short, warm Japanese sentence celebrating it (adequacyNote); otherwise null.",
         "NEVER correct, teach, or coach the learner in the reply.",
       ].join("\n");
       const raw = await this.generate(prompt, RESPOND_SCHEMA);
-      const parsed = respondResultSchema.parse(raw);
-      return { npcReply: parsed.npcReply, completionNote: parsed.completionNote ?? null };
+      const parsed = respondResultSchema.parse(
+        typeof raw === "object" && raw !== null
+          ? { adequacyNote: null, completionNote: null, ...(raw as Record<string, unknown>) }
+          : raw,
+      );
+      return {
+        npcReply: parsed.npcReply,
+        completionNote: parsed.completionNote,
+        adequate: parsed.adequate,
+        adequacyNote: parsed.adequate
+          ? (parsed.adequacyNote ?? "そのひとことで、ちゃんと伝わりました。")
+          : null,
+      };
     } catch {
       return this.fallback.respond(scene, utterance);
     }

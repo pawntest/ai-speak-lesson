@@ -63,6 +63,14 @@ export interface RetryEvaluation {
 export interface RespondResult {
   npcReply: string | null;
   completionNote: string | null;
+  /**
+   * True when the first utterance already communicates well in this scene —
+   * the UI then celebrates instead of forcing intention selection.
+   * Judges communicative adequacy only; never decides the user's intention.
+   */
+  adequate: boolean;
+  /** Warm JA note shown when adequate (null otherwise). */
+  adequacyNote: string | null;
 }
 
 /* ----------------------------------------------------------------------------

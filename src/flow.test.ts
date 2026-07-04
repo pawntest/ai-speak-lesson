@@ -17,6 +17,8 @@ function reachReflection(): FlowState {
     utterance: "Coffee.",
     npcReply: "Sure, one coffee.",
     completionNote: null,
+    adequate: false,
+    adequacyNote: null,
   });
   state = flowReducer(state, { type: "REFLECT" });
   return flowReducer(state, {
@@ -68,6 +70,21 @@ describe("flowReducer", () => {
     // options are kept so the second pick is one tap away
     expect(state.intentOptions).not.toBeNull();
     expect(canShowImprovement(state)).toBe(false);
+  });
+
+  it("records adequacy so the UI can celebrate instead of forcing reflection (D9)", () => {
+    const state = flowReducer(initialFlowState, {
+      type: "RESPONDED",
+      utterance: "I'd like a coffee.",
+      npcReply: "Sure — coming right up!",
+      completionNote: null,
+      adequate: true,
+      adequacyNote: "そのひとことで、ちゃんと伝わりました。",
+    });
+    expect(state.phase).toBe("responded");
+    expect(state.adequate).toBe(true);
+    // Reflection stays reachable as an OPTIONAL path.
+    expect(flowReducer(state, { type: "REFLECT" }).phase).toBe("reflection");
   });
 
   it("degrades gracefully when respond() fails: the learner's words survive and reflection is reachable", () => {

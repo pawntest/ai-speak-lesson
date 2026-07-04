@@ -1454,3 +1454,62 @@ input {
     grid-column: 1 / -1;
   }
 }
+
+/* ---------------------------------------------------------------------------
+ * Scene3D — first-person canvas + third-person wipe (D10)
+ * ------------------------------------------------------------------------ */
+.s3d-wrap {
+  position: absolute;
+  inset: 0;
+}
+
+.s3d-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* The wipe's visible frame doubles as its tap target. Geometry mirrors the
+ * GL scissor rect in Scene3D (top-right, width 30% / 62%, aspect 0.68). */
+.s3d-wipe-hit {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 30%;
+  aspect-ratio: 1 / 0.68;
+  background: transparent;
+  border: 2px solid rgba(245, 227, 194, 0.55);
+  border-radius: 6px;
+  box-shadow: 0 2px 14px rgba(0, 0, 0, 0.45);
+  cursor: pointer;
+  padding: 0;
+  /* Above the NPC speech bubble (z-index 6) so the toggle stays tappable
+   * even when the expanded wipe sits under the bubble. */
+  z-index: 7;
+}
+
+.s3d-wipe-hit::after {
+  content: "自分を外から見る";
+  position: absolute;
+  left: 4px;
+  bottom: 3px;
+  font-size: 0.55rem;
+  letter-spacing: 0.06em;
+  color: rgba(245, 227, 194, 0.8);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+
+.s3d-wipe-hit-big {
+  width: 62%;
+}
+
+.s3d-wipe-hit-big::after {
+  content: "一人称に集中する";
+  font-size: 0.65rem;
+}
+
+/* D9 — the first utterance already communicated. */
+.adequate-block {
+  display: grid;
+  gap: 12px;
+}

@@ -187,15 +187,25 @@ describe("api routes (mock provider)", () => {
       utterance: "Coffee.",
     });
     expect(short.status).toBe(200);
-    expect(Object.keys(short.body).sort()).toEqual(["completionNote", "npcReply"]);
+    expect(Object.keys(short.body).sort()).toEqual([
+      "adequacyNote",
+      "adequate",
+      "completionNote",
+      "npcReply",
+    ]);
     expect(typeof short.body.npcReply).toBe("string");
     expect(typeof short.body.completionNote).toBe("string");
+    expect(short.body.adequate).toBe(false);
+    expect(short.body.adequacyNote).toBeNull();
 
+    // D9: an already-adequate utterance is celebrated, not completed.
     const full = await post(server.url, "/api/respond", {
       sceneId: "cafe-order",
       utterance: "I'd like a large coffee, please.",
     });
     expect(full.body.completionNote).toBeNull();
+    expect(full.body.adequate).toBe(true);
+    expect(typeof full.body.adequacyNote).toBe("string");
   });
 
   it("evaluate-retry judges communicated intent, not string equality", async () => {
@@ -431,7 +441,7 @@ describe("api routes with an over-long AI suggestion", () => {
         meaningJa: "丁寧な言い方",
         reasonJa: "丁寧だから",
       }),
-    respond: () => Promise.resolve({ npcReply: "ok", completionNote: null }),
+    respond: () => Promise.resolve({ npcReply: "ok", completionNote: null, adequate: false, adequacyNote: null }),
     evaluateRetry: () => Promise.resolve({ communicated: true, note: "ok" }),
   };
 

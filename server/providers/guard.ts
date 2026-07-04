@@ -3,18 +3,14 @@
  * failure modes 2 and 5). Anything that fails here is replaced by a safe
  * deterministic MockProvider result — never a 500 to the user.
  */
-import { z } from "zod";
-import { improvementSchema } from "../../shared/schemas";
-import type { Improvement, RespondResult } from "../../shared/types";
+import { improvementSchema, respondResultSchema } from "../../shared/schemas";
+import type { Improvement } from "../../shared/types";
 
 /** One-chunk-better means SHORT: beginner-level, single sentence, <= 12 words. */
 export const MAX_IMPROVED_WORDS = 12;
 
-/** Zod schema for the D3 /api/respond response (not part of shared/schemas). */
-export const respondResultSchema = z.object({
-  npcReply: z.string().nullable(),
-  completionNote: z.string().nullable(),
-}) satisfies z.ZodType<RespondResult>;
+/** Re-exported so existing imports keep working (now lives in shared/schemas). */
+export { respondResultSchema };
 
 /**
  * Returns null when the improvement satisfies every product rule, otherwise a

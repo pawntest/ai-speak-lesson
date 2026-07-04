@@ -26,6 +26,9 @@ export interface FlowState {
   utterance: string | null;
   npcReply: string | null;
   completionNote: string | null;
+  /** D9: the first utterance already communicated — celebrate, don't force reflection. */
+  adequate: boolean;
+  adequacyNote: string | null;
   /** respond() failed (e.g. 501 while the server is unfinished). */
   respondFailed: boolean;
   intentOptions: string[] | null;
@@ -44,6 +47,8 @@ export const initialFlowState: FlowState = {
   utterance: null,
   npcReply: null,
   completionNote: null,
+  adequate: false,
+  adequacyNote: null,
   respondFailed: false,
   intentOptions: null,
   optionsFailed: false,
@@ -56,7 +61,14 @@ export const initialFlowState: FlowState = {
 };
 
 export type FlowEvent =
-  | { type: "RESPONDED"; utterance: string; npcReply: string | null; completionNote: string | null }
+  | {
+      type: "RESPONDED";
+      utterance: string;
+      npcReply: string | null;
+      completionNote: string | null;
+      adequate: boolean;
+      adequacyNote: string | null;
+    }
   | { type: "RESPOND_FAILED"; utterance: string }
   | { type: "REFLECT" }
   | { type: "OPTIONS_LOADED"; options: string[] }
@@ -85,6 +97,8 @@ export function flowReducer(state: FlowState, event: FlowEvent): FlowState {
         utterance: event.utterance,
         npcReply: event.npcReply,
         completionNote: event.completionNote,
+        adequate: event.adequate,
+        adequacyNote: event.adequacyNote,
         respondFailed: false,
       };
 
