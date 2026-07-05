@@ -4,12 +4,17 @@
  * 1. Fixture path: SCENARIOS.json `mock_attempts` matched case/punctuation-
  *    insensitively (supports both the flat shape and the `variants` shape).
  * 2. Rule-based fallback for ANY unseen utterance/intent so the flow never
- *    dead-ends: neutral JA intent options from scene context; improvement that
- *    preserves the learner's words and adds exactly ONE semantic chunk.
+ *    dead-ends: neutral IntentOption objects (D11: textEn/textJa/icon) from
+ *    scene + conversation context; improvement that preserves the learner's
+ *    words and adds exactly ONE semantic chunk.
+ * 3. D12 multi-turn: respond() replays the scene's scripted follow_up_turns
+ *    keyed by the learner-turn count, then closes with done=true.
  * No randomness anywhere: same input -> same output.
  */
 import type {
+  ConversationTurn,
   Improvement,
+  IntentOption,
   IntentOptionsResult,
   RespondResult,
   RetryEvaluation,
@@ -31,17 +36,28 @@ interface FixtureVariant {
   selected_intent: string;
   improved_utterance: string;
   primary_diff: string;
+  meaning_en: string;
+  reason_en: string;
   meaning_ja: string;
   reason_ja: string;
 }
 
+/** D11 raw fixture option shape (snake_case mirror of IntentOption). */
+interface FixtureIntentOption {
+  text_en?: unknown;
+  text_ja?: unknown;
+  icon?: unknown;
+}
+
 interface FixtureAttempt {
   user_utterance?: string;
-  intent_options?: string[];
+  intent_options?: FixtureIntentOption[];
   variants?: FixtureVariant[];
   selected_intent?: string;
   improved_utterance?: string;
   primary_diff?: string;
+  meaning_en?: string;
+  reason_en?: string;
   meaning_ja?: string;
   reason_ja?: string;
 }
@@ -71,6 +87,8 @@ function attemptVariants(attempt: FixtureAttempt): FixtureVariant[] {
     typeof attempt.selected_intent === "string" &&
     typeof attempt.improved_utterance === "string" &&
     typeof attempt.primary_diff === "string" &&
+    typeof attempt.meaning_en === "string" &&
+    typeof attempt.reason_en === "string" &&
     typeof attempt.meaning_ja === "string" &&
     typeof attempt.reason_ja === "string"
   ) {
@@ -78,6 +96,8 @@ function attemptVariants(attempt: FixtureAttempt): FixtureVariant[] {
       selected_intent: attempt.selected_intent,
       improved_utterance: attempt.improved_utterance,
       primary_diff: attempt.primary_diff,
+      meaning_en: attempt.meaning_en,
+      reason_en: attempt.reason_en,
       meaning_ja: attempt.meaning_ja,
       reason_ja: attempt.reason_ja,
     });
@@ -118,37 +138,51 @@ export function ruleBasedImprovement(
 
   let improvedUtterance: string;
   let primaryDiff: string;
+  let meaningEn: string;
+  let reasonEn: string;
   let meaningJa: string;
   let reasonJa: string;
 
   if (/おすすめ|お薦め|recommend/iu.test(intent)) {
     improvedUtterance = "What do you recommend?";
     primaryDiff = "What do you recommend";
+    meaningEn = "This asks the other person for their idea.";
+    reasonEn = "The staff here can pick something good for you.";
     meaningJa = "「おすすめは何ですか」と相手に提案を求める言い方";
     reasonJa = `${scene.location}では、相手に選択を委ねる一言で会話が自然に進むから`;
   } else if (/気付|気づ|呼び|呼んで|注意|attention|notice/iu.test(intent)) {
     improvedUtterance = `Excuse me, ${lowered}.`;
     primaryDiff = "Excuse me";
+    meaningEn = "'Excuse me' politely gets someone's attention.";
+    reasonEn = "The person here must notice you before you speak.";
     meaningJa = "「すみません」と相手の注意をこちらへ向ける丁寧な呼びかけ";
     reasonJa = `${scene.location}では、用件の前にまず一言で相手に気付いてもらう必要があるから`;
   } else if (/ゆっくり|slow/iu.test(intent)) {
     improvedUtterance = "Could you speak more slowly?";
     primaryDiff = "Could you speak more";
+    meaningEn = "'Could you' asks for something in a soft way.";
+    reasonEn = "It asks only for slower speech, with no blame.";
     meaningJa = "「〜してもらえますか」と相手に負担なくお願いする形";
     reasonJa = `${scene.location}で聞き取りづらいとき、責めずに速さだけを変えてもらえるから`;
   } else if (/もう一度|もう1度|聞き|聞こえ|繰り返|repeat|again|pardon/iu.test(intent)) {
     improvedUtterance = "Could you say that again?";
     primaryDiff = "Could you say that";
+    meaningEn = "This asks someone to say it one more time.";
+    reasonEn = "You can hear the missed words here again.";
     meaningJa = "相手に同じ内容をもう一度言ってもらうお願いの形";
     reasonJa = `${scene.location}で聞き取れなかったとき、丁寧に繰り返しを頼めるから`;
   } else if (/確認|確かめ|check|confirm|clarify/iu.test(intent)) {
     improvedUtterance = `${capitalize(lowered)}, right?`;
     primaryDiff = "right";
+    meaningEn = "'Right?' asks if something is correct.";
+    reasonEn = "A small check here stops a mistake early.";
     meaningJa = "「〜で合っていますか」と軽く確かめる付け足しの一言";
     reasonJa = `${scene.location}では、短い確認を添えるだけで認識違いを防げるから`;
   } else if (/待|時間|wait|moment/iu.test(intent)) {
     improvedUtterance = "One moment, please.";
     primaryDiff = "One moment";
+    meaningEn = "This asks for a little time, politely.";
+    reasonEn = "The other person here can wait calmly after it.";
     meaningJa = "「少し待ってください」と時間がほしいことを伝える定型表現";
     reasonJa = `${scene.location}では、黙るより一言伝える方が相手も安心して待てるから`;
   } else if (/i'?d like|i would like|could you|can i|may i|please/iu.test(core)) {
@@ -157,11 +191,15 @@ export function ruleBasedImprovement(
     improvedUtterance = `${capitalize(core)}.`;
     const match = /i'?d like|i would like|could you|can i|may i|please/iu.exec(improvedUtterance);
     primaryDiff = match ? match[0] : improvedUtterance.slice(0, -1);
+    meaningEn = "This form asks for something politely.";
+    reasonEn = "It sounds like a kind request in this place.";
     meaningJa = "自分の希望をお願いの形で伝える言い方";
     reasonJa = `${scene.location}では、この形にすると要求ではなく依頼として伝わるから`;
   } else {
     improvedUtterance = `I'd like ${lowered}.`;
     primaryDiff = "I'd like";
+    meaningEn = "'I'd like' means 'I want', said politely.";
+    reasonEn = "It makes your wish clear in this place.";
     meaningJa = "「〜がほしいです」と自分の希望を丁寧に伝える形";
     reasonJa = `${scene.location}では、単語だけより希望の形にすると意図がはっきり伝わるから`;
   }
@@ -171,51 +209,87 @@ export function ruleBasedImprovement(
     selectedIntent: intent,
     improvedUtterance,
     primaryDiff,
+    meaningEn,
+    reasonEn,
     meaningJa,
     reasonJa,
   };
 }
 
+/** D11 fallback candidates: each JA intent paired with an EN name + icon. */
+const FALLBACK_OPTION: Record<string, IntentOption> = {
+  order: { textEn: "I wanted to order it", textJa: "それを注文したかった", icon: "🛎" },
+  repeat: { textEn: "I wanted them to repeat", textJa: "もう一度言ってほしかった", icon: "🔁" },
+  directions: { textEn: "I wanted to know the way", textJa: "行き方・場所を知りたかった", icon: "🗺️" },
+  procedure: { textEn: "I wanted to check in", textJa: "手続きを進めたかった", icon: "🏨" },
+  wait: { textEn: "I wanted them to wait", textJa: "少し待ってほしかった", icon: "⏳" },
+  attention: { textEn: "I wanted them to notice me", textJa: "相手に気付いてほしかった", icon: "🙋" },
+  confirmQuestion: { textEn: "I wanted to ask and check", textJa: "質問をして確かめたかった", icon: "🧐" },
+  confirmHeard: { textEn: "I wanted to check their words", textJa: "相手の言ったことを確認したかった", icon: "✅" },
+  tellNeed: { textEn: "I wanted to say my need", textJa: "自分の用件を伝えたかった", icon: "💬" },
+  moreTime: { textEn: "I wanted more time", textJa: "少し時間がほしかった", icon: "🕐" },
+  askQuestion: { textEn: "I wanted to ask a question", textJa: "質問をしたかった", icon: "❓" },
+  didNotUnderstand: { textEn: "I didn't understand you", textJa: "聞き取れなかった", icon: "🤔" },
+};
+
 /**
- * Deterministic neutral JA options conditioned on what the learner actually
- * said (発話対応), so the choices plausibly correspond to the utterance.
+ * Deterministic neutral options conditioned on what the learner actually said
+ * (発話対応) and, when provided, the conversation so far (D12): the LAST NPC
+ * line adds cues (e.g. the NPC asked a question → a comprehension option).
  * Cue-derived candidates come first, scene-generic fillers complete 4 options.
+ * D11: every option is an IntentOption object {textEn, textJa, icon}.
  */
-function fallbackIntentOptions(scene: Scene, utterance: string): IntentOptionsResult {
+export function fallbackIntentOptions(
+  scene: Scene,
+  utterance: string,
+  turns?: ConversationTurn[],
+): IntentOptionsResult {
   const norm = normalizeUtterance(utterance);
-  const options: string[] = [];
-  const add = (option: string) => {
-    if (options.length < 5 && !options.includes(option)) options.push(option);
+  const options: IntentOption[] = [];
+  const add = (option: IntentOption) => {
+    if (options.length < 5 && !options.some((o) => o.textJa === option.textJa)) {
+      options.push(option);
+    }
   };
+
+  // Conversation cue (D12): the learner reacted to the last NPC line.
+  const lastNpc = turns
+    ?.slice()
+    .reverse()
+    .find((t) => t.speaker === "npc");
+  if (lastNpc && /[?？]\s*$/.test(lastNpc.text.trim())) {
+    // The NPC asked a question — the learner may simply not have caught it.
+    add(FALLBACK_OPTION.didNotUnderstand);
+  }
 
   // Utterance-content cues → corresponding intents.
   if (/coffee|tea|water|juice|menu|croissant|sandwich|cake|food|drink|order/.test(norm)) {
-    add("それを注文したかった");
+    add(FALLBACK_OPTION.order);
   }
   if (/again|pardon|sorry|what|repeat|slowly/.test(norm)) {
-    add("もう一度言ってほしかった");
+    add(FALLBACK_OPTION.repeat);
   }
   if (/where|way|go|station|street|map|find/.test(norm)) {
-    add("行き方・場所を知りたかった");
+    add(FALLBACK_OPTION.directions);
   }
   if (/check in|checkin|room|reservation|booking/.test(norm)) {
-    add("手続きを進めたかった");
+    add(FALLBACK_OPTION.procedure);
   }
   if (/wait|moment|minute|second/.test(norm)) {
-    add("少し待ってほしかった");
+    add(FALLBACK_OPTION.wait);
   }
   if (/excuse me|hello|hi\b/.test(norm)) {
-    add("相手に気付いてほしかった");
+    add(FALLBACK_OPTION.attention);
   }
   if (/[?？]\s*$/.test(utterance.trim())) {
-    add("質問をして確かめたかった");
+    add(FALLBACK_OPTION.confirmQuestion);
   }
 
   // Scene-generic fillers keep the set at 4 neutral, same-abstraction options.
-  add(scene.npcOpening ? "相手の言ったことを確認したかった" : "相手に気付いてほしかった");
-  add("自分の用件を伝えたかった");
-  add("少し時間がほしかった");
-  add("質問をしたかった");
+  add(scene.npcOpening ? FALLBACK_OPTION.confirmHeard : FALLBACK_OPTION.attention);
+  add(FALLBACK_OPTION.tellNeed);
+  add(FALLBACK_OPTION.moreTime);
+  add(FALLBACK_OPTION.askQuestion);
 
   return { options: options.slice(0, 4) };
 }
@@ -262,16 +336,33 @@ function tokenOverlapRatio(reference: string, candidate: string): number {
   return matched.length / refTokens.length;
 }
 
+/** Friendly deterministic closing line once a scene's script is exhausted. */
+export const MOCK_CLOSING_LINE = "Great — you're all set. Have a nice day!";
+
 export class MockProvider implements AiProvider {
-  getIntentOptions(scene: Scene, utterance: string): Promise<IntentOptionsResult> {
+  getIntentOptions(
+    scene: Scene,
+    utterance: string,
+    turns?: ConversationTurn[],
+  ): Promise<IntentOptionsResult> {
     const attempt = findAttempt(scene.id, utterance);
-    const fixtureOptions = attempt?.intent_options?.filter(
-      (o) => typeof o === "string" && o.trim().length > 0,
-    );
-    if (fixtureOptions && fixtureOptions.length >= 3) {
+    const fixtureOptions = (attempt?.intent_options ?? [])
+      .filter(
+        (o): o is { text_en: string; text_ja: string; icon: string } =>
+          typeof o === "object" &&
+          o !== null &&
+          typeof o.text_en === "string" &&
+          o.text_en.trim().length > 0 &&
+          typeof o.text_ja === "string" &&
+          o.text_ja.trim().length > 0 &&
+          typeof o.icon === "string" &&
+          o.icon.trim().length > 0,
+      )
+      .map((o): IntentOption => ({ textEn: o.text_en, textJa: o.text_ja, icon: o.icon }));
+    if (fixtureOptions.length >= 3) {
       return Promise.resolve({ options: fixtureOptions.slice(0, 5) });
     }
-    return Promise.resolve(fallbackIntentOptions(scene, utterance));
+    return Promise.resolve(fallbackIntentOptions(scene, utterance, turns));
   }
 
   improve(scene: Scene, utterance: string, intent: string): Promise<Improvement> {
@@ -285,6 +376,8 @@ export class MockProvider implements AiProvider {
           selectedIntent: intent,
           improvedUtterance: hit.improved_utterance,
           primaryDiff: hit.primary_diff,
+          meaningEn: hit.meaning_en,
+          reasonEn: hit.reason_en,
           meaningJa: hit.meaning_ja,
           reasonJa: hit.reason_ja,
         });
@@ -293,7 +386,7 @@ export class MockProvider implements AiProvider {
     return Promise.resolve(ruleBasedImprovement(scene, utterance, intent));
   }
 
-  respond(scene: Scene, utterance: string): Promise<RespondResult> {
+  respond(scene: Scene, utterance: string, turns?: ConversationTurn[]): Promise<RespondResult> {
     const norm = normalizeUtterance(utterance);
     const words = norm.split(" ").filter(Boolean);
     // 発話が既に十分伝わるなら、UIは意図選択を強制せず祝福する(D9)。
@@ -301,23 +394,32 @@ export class MockProvider implements AiProvider {
     // The NPC "completes" only when the utterance was fragmentary (<= 2 words).
     const completed = !adequate && words.length > 0 && words.length <= 2;
 
-    let npcReply: string;
+    // D12 deterministic script: the current utterance is learner turn N
+    // (0-based, counted from `turns`), answered by follow_up_turns[N];
+    // past the script the NPC closes the exchange.
+    const scenario = loadRawScenarios().scenarios.find((s) => s.id === scene.id);
+    const followUps = Array.isArray(scenario?.follow_up_turns)
+      ? scenario.follow_up_turns.filter((t): t is string => typeof t === "string" && t.length > 0)
+      : [];
+    const learnerTurnsSoFar = (turns ?? []).filter((t) => t.speaker === "learner").length;
+    const scripted = learnerTurnsSoFar < followUps.length ? followUps[learnerTurnsSoFar] : null;
+    const npcReply = scripted ?? MOCK_CLOSING_LINE;
+    // Done when the script is exhausted (this reply is the closing line) or
+    // the utterance already communicated adequately (D12: adequate ⇒ done).
+    const done = scripted === null || adequate;
+
     let completion: string;
     switch (scene.id) {
       case "cafe-order":
-        npcReply = "Sure — coming right up!";
         completion = "店員は「これを1つ注文したい」という意味に補って受け取りました。";
         break;
       case "missing-order":
-        npcReply = "Oh — let me check on that for you.";
         completion = "店員は「注文がまだ届いていない」という意味に補って受け取りました。";
         break;
       case "did-not-understand":
-        npcReply = "Sure — would you like a receipt?";
         completion = "相手は聞き返しだと補って受け取り、もう一度言い直してくれました。";
         break;
       default:
-        npcReply = "Okay, got it!";
         completion = "相手は文脈から意味を補って受け取りました。";
         break;
     }
@@ -329,6 +431,7 @@ export class MockProvider implements AiProvider {
       adequacyNote: adequate
         ? "そのひとことで、ちゃんと伝わりました。この場面はもう自分のものです。"
         : null,
+      done,
     });
   }
 

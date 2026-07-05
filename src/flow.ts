@@ -6,32 +6,45 @@
  * - A4: "another intention" clears the improvement and returns to reflection,
  *   so the same scene can produce multiple cards.
  * - A8: retry replays the decisive moment from a clean slate (no stale reply).
+ * - D12: the conversation loop (turns/done) is orthogonal to the phase, and
+ *   the stuck-help overlay (helpOpen) is a second orthogonal flag — rescue
+ *   intent selection reuses the SAME INTENT_SELECTED/IMPROVEMENT_LOADED path
+ *   as the main reflection flow, so A2 holds for it too.
  *
  * All async work (API calls) lives in components; the reducer only records
  * results, so it stays a pure, unit-testable function.
  */
-import type { Improvement, RetryEvaluation } from "../shared/types";
+import type { ConversationTurn, Improvement, IntentOption, RetryEvaluation } from "../shared/types";
 
 export type FlowPhase =
-  | "experience" // scene staged; waiting for the learner's first utterance
+  | "experience" // scene staged; waiting for the learner's next utterance
   | "responded" // respond() settled; NPC reply (or friendly fallback) shown
-  | "reflection" // 「本当は何を伝えたかった？」 — no improvement visible yet
+  | "reflection" // "What did you want to say?" — no improvement visible yet
   | "diff" // context-difference view
   | "retry" // decisive moment replayed; waiting for the retry utterance
   | "retryResult"; // communicated-or-not shown
 
+/** Phases where the stuck-help overlay may be opened (D12). */
+const HELP_ELIGIBLE_PHASES: FlowPhase[] = ["experience", "responded", "reflection"];
+
 export interface FlowState {
   phase: FlowPhase;
-  /** The learner's first utterance — the one being improved. */
+  /** The learner's most recent utterance — the one being improved/reflected on. */
   utterance: string | null;
   npcReply: string | null;
   completionNote: string | null;
-  /** D9: the first utterance already communicated — celebrate, don't force reflection. */
+  /** D9: the utterance already communicated well — celebrate, don't force reflection. */
   adequate: boolean;
   adequacyNote: string | null;
   /** respond() failed (e.g. 501 while the server is unfinished). */
   respondFailed: boolean;
-  intentOptions: string[] | null;
+  /** D12: the running scene conversation, oldest first. */
+  turns: ConversationTurn[];
+  /** D12: true once the exchange has naturally concluded. */
+  done: boolean;
+  /** D12: stuck-help overlay open flag — orthogonal to `phase`. */
+  helpOpen: boolean;
+  intentOptions: IntentOption[] | null;
   optionsFailed: boolean;
   selectedIntent: string | null;
   improveFailed: boolean;
@@ -50,6 +63,9 @@ export const initialFlowState: FlowState = {
   adequate: false,
   adequacyNote: null,
   respondFailed: false,
+  turns: [],
+  done: false,
+  helpOpen: false,
   intentOptions: null,
   optionsFailed: false,
   selectedIntent: null,
@@ -68,14 +84,18 @@ export type FlowEvent =
       completionNote: string | null;
       adequate: boolean;
       adequacyNote: string | null;
+      done: boolean;
     }
   | { type: "RESPOND_FAILED"; utterance: string }
+  | { type: "CONTINUE" }
   | { type: "REFLECT" }
-  | { type: "OPTIONS_LOADED"; options: string[] }
+  | { type: "OPTIONS_LOADED"; options: IntentOption[] }
   | { type: "OPTIONS_FAILED" }
   | { type: "INTENT_SELECTED"; intent: string }
   | { type: "IMPROVEMENT_LOADED"; improvement: Improvement }
   | { type: "IMPROVE_FAILED" }
+  | { type: "HELP_OPENED" }
+  | { type: "HELP_CLOSED" }
   | { type: "RETRY_STARTED" }
   | { type: "RETRY_EVALUATED"; utterance: string; evaluation: RetryEvaluation }
   | { type: "RETRY_EVAL_FAILED"; utterance: string }
@@ -89,8 +109,13 @@ export function canShowImprovement(state: FlowState): boolean {
 
 export function flowReducer(state: FlowState, event: FlowEvent): FlowState {
   switch (event.type) {
-    case "RESPONDED":
+    case "RESPONDED": {
       if (state.phase !== "experience") return state;
+      const turns: ConversationTurn[] = [
+        ...state.turns,
+        { speaker: "learner", text: event.utterance },
+        ...(event.npcReply ? [{ speaker: "npc", text: event.npcReply } satisfies ConversationTurn] : []),
+      ];
       return {
         ...state,
         phase: "responded",
@@ -100,12 +125,35 @@ export function flowReducer(state: FlowState, event: FlowEvent): FlowState {
         adequate: event.adequate,
         adequacyNote: event.adequacyNote,
         respondFailed: false,
+        turns,
+        done: event.done,
       };
+    }
 
     case "RESPOND_FAILED":
       // Keep the learner's words and let the loop continue (friendly degrade).
       if (state.phase !== "experience") return state;
-      return { ...state, phase: "responded", utterance: event.utterance, respondFailed: true };
+      return {
+        ...state,
+        phase: "responded",
+        utterance: event.utterance,
+        respondFailed: true,
+        turns: [...state.turns, { speaker: "learner", text: event.utterance }],
+      };
+
+    case "CONTINUE":
+      // D12: after a non-done NPC reply, go back to "experience" so the
+      // learner can speak again — turns/done/helpOpen survive untouched.
+      if (state.phase !== "responded" || state.done) return state;
+      return {
+        ...state,
+        phase: "experience",
+        npcReply: null,
+        completionNote: null,
+        adequate: false,
+        adequacyNote: null,
+        respondFailed: false,
+      };
 
     case "REFLECT":
       if (state.phase !== "responded") return state;
@@ -121,20 +169,46 @@ export function flowReducer(state: FlowState, event: FlowEvent): FlowState {
       return { ...state, optionsFailed: true };
 
     case "INTENT_SELECTED": {
-      if (state.phase !== "reflection") return state;
+      // D12: the rescue overlay reuses this same event while helpOpen, from
+      // whichever base phase the conversation was in when help was opened.
+      if (state.phase !== "reflection" && !state.helpOpen) return state;
       const intent = event.intent.trim();
       if (!intent) return state;
       return { ...state, selectedIntent: intent, improveFailed: false };
     }
 
-    case "IMPROVEMENT_LOADED":
+    case "IMPROVEMENT_LOADED": {
       // INVARIANT (A2): an improvement can never land without a chosen intention.
-      if (state.phase !== "reflection" || state.selectedIntent === null) return state;
+      if (state.selectedIntent === null) return state;
+      if (state.phase !== "reflection" && !state.helpOpen) return state;
+      if (state.helpOpen) {
+        // Rescue path: the overlay renders the improvement itself; the base
+        // phase (experience/responded/reflection) stays exactly as it was.
+        return { ...state, improvement: event.improvement, improveFailed: false };
+      }
       return { ...state, phase: "diff", improvement: event.improvement, improveFailed: false };
+    }
 
     case "IMPROVE_FAILED":
-      if (state.phase !== "reflection") return state;
+      if (state.phase !== "reflection" && !state.helpOpen) return state;
       return { ...state, improveFailed: true };
+
+    case "HELP_OPENED":
+      if (!HELP_ELIGIBLE_PHASES.includes(state.phase)) return state;
+      return { ...state, helpOpen: true };
+
+    case "HELP_CLOSED":
+      if (!state.helpOpen) return state;
+      // Whatever selectedIntent/improvement exist here were necessarily set
+      // by the rescue path (see IMPROVEMENT_LOADED) — clear them so the main
+      // reflection flow (if any) resumes with a clean slate.
+      return {
+        ...state,
+        helpOpen: false,
+        selectedIntent: null,
+        improvement: null,
+        improveFailed: false,
+      };
 
     case "RETRY_STARTED":
       if (state.phase !== "diff" && state.phase !== "retryResult") return state;

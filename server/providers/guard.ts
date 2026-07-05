@@ -18,6 +18,7 @@ export { respondResultSchema };
  * - matches the shared zod schema
  * - improvedUtterance is one short sentence (<= MAX_IMPROVED_WORDS words)
  * - primaryDiff is a substring of improvedUtterance
+ * - meaningEn and reasonEn are distinct texts (D11)
  * - meaningJa and reasonJa are distinct texts
  */
 export function findImprovementViolation(value: unknown): string | null {
@@ -41,6 +42,10 @@ export function findImprovementViolation(value: unknown): string | null {
 
   if (!imp.improvedUtterance.includes(imp.primaryDiff)) {
     return "primaryDiff is not a substring of improvedUtterance";
+  }
+
+  if (imp.meaningEn.trim() === imp.reasonEn.trim()) {
+    return "meaningEn and reasonEn must be distinct texts";
   }
 
   if (imp.meaningJa.trim() === imp.reasonJa.trim()) {

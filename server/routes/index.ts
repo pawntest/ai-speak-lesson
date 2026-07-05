@@ -2,8 +2,8 @@
  * API surface frozen by decision D3.
  *
  *   GET  /api/scenes          → Scene[]
- *   POST /api/respond         → { npcReply, completionNote, adequate, adequacyNote }  (no coaching here)
- *   POST /api/intent-options  → { options }                   (NEVER any improvement)
+ *   POST /api/respond         → { npcReply, completionNote, adequate, adequacyNote, done }  (no coaching here)
+ *   POST /api/intent-options  → { options: IntentOption[] }   (NEVER any improvement)
  *   POST /api/improve         → Improvement
  *   POST /api/evaluate-retry  → RetryEvaluation
  *
@@ -14,7 +14,12 @@
  */
 import { Router, type Request, type Response } from "express";
 import { z } from "zod";
-import { improvementSchema, intentOptionsResultSchema, retryEvaluationSchema } from "../../shared/schemas";
+import {
+  conversationTurnSchema,
+  improvementSchema,
+  intentOptionsResultSchema,
+  retryEvaluationSchema,
+} from "../../shared/schemas";
 import type { Scene } from "../../shared/types";
 import {
   ANONYMOUS_CLIENT_ID,
@@ -31,6 +36,9 @@ import { loadScenes } from "../scenes";
 const respondBodySchema = z.object({
   sceneId: z.string().min(1),
   utterance: z.string().min(1),
+  // D12: optional conversation so far (learner + npc lines). Capped so a
+  // client cannot ship an unbounded transcript to the provider.
+  turns: z.array(conversationTurnSchema).max(20).optional(),
 });
 
 const improveBodySchema = respondBodySchema.extend({
