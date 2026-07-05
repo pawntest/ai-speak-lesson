@@ -97,3 +97,14 @@ Goal: learn concepts → English directly, minimal L1 routing (Duolingo-style: m
 ## D13 — 3D persons + Gemini option quality
 - PropSpec kind "person": procedural low-poly human (sphere head + cylinder body/arms, role-colored outfit, idle "breathe"|"walk"), replaces people-emoji in all five scenes; object emoji stay.
 - Gemini intent-options prompt conditioned on scene + conversation history + latest utterance; outputs {textEn,textJa,icon} 3–5 via responseSchema; forbidden: ranking, correct-marking, any rewrite/correction of the learner's utterance. respond prompt gains history + "done=true only when naturally concluded". All zod-validated with mock fallback.
+
+## Server D11-13 notes
+- SCENARIOS.json: intent_options are now objects {text_en (≤6 A1 words), text_ja, icon}; every fixture improvement (flat + variants) carries meaning_en/reason_en beside the JA texts; each scene has follow_up_turns (2 scripted NPC lines). All prior fields kept.
+- AiProvider.respond/getIntentOptions accept optional turns: ConversationTurn[] (routes validate with conversationTurnSchema, cap 20).
+- MockProvider.respond: learner-turn count from `turns` indexes follow_up_turns; past the script it replies MOCK_CLOSING_LINE (exported) with done=true; done also true when adequate (D12). completionNote logic unchanged (fragmentary + non-adequate only).
+- fallbackIntentOptions (exported) emits IntentOption objects from a fixed JA→{textEn,icon} map; when the last NPC turn ends with ?/？ it prepends the comprehension cue {\"I didn't understand you\", 聞き取れなかった, 🤔}.
+- ruleBasedImprovement: each branch has distinct meaningEn/reasonEn (A1) paired with the existing JA texts.
+- guard: findImprovementViolation additionally rejects meaningEn === reasonEn (trimmed); En fields are schema-required, so legacy Ja-only improvements now fall back.
+- Gemini: OPTIONS_SCHEMA → 3–5 {textEn,textJa,icon} objects; IMPROVEMENT_SCHEMA += meaningEn/reasonEn; RESPOND_SCHEMA += required done. Prompts per D13 (history lines "learner:/npc:", done-only-when-concluded, textEn-names-the-intention-never-a-fix). Fallback paths forward turns to the mock.
+- /api/respond response gains done; /api/intent-options rebuilds each option key-by-key (textEn/textJa/icon only); /api/improve response includes meaningEn/reasonEn.
+- Verified: tsc -p tsconfig.server.json clean; vitest run server = 62/62 green.

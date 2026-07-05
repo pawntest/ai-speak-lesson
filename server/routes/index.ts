@@ -88,20 +88,24 @@ export function createApiRouter(provider: AiProvider = selectProvider()): Router
     res.json(loadScenes());
   });
 
-  // { sceneId, utterance } → { npcReply, completionNote }. Never coaches.
+  // { sceneId, utterance, turns? } → { npcReply, completionNote, adequate,
+  // adequacyNote, done }. Never coaches. D12: turns drive the multi-turn
+  // continuation and `done`.
   router.post("/respond", async (req, res) => {
     const parsed = parseRequest(respondBodySchema, req, res);
     if (!parsed) return;
     const { scene, body } = parsed;
     let result: unknown;
     try {
-      result = await provider.respond(scene, body.utterance);
+      result = await provider.respond(scene, body.utterance, body.turns);
     } catch {
       result = null;
     }
     let checked = respondResultSchema.safeParse(result);
     if (!checked.success) {
-      checked = respondResultSchema.safeParse(await safety.respond(scene, body.utterance));
+      checked = respondResultSchema.safeParse(
+        await safety.respond(scene, body.utterance, body.turns),
+      );
     }
     if (!checked.success) {
       res.status(500).json({ error: "respond failed" });
@@ -112,34 +116,42 @@ export function createApiRouter(provider: AiProvider = selectProvider()): Router
       completionNote: checked.data.completionNote,
       adequate: checked.data.adequate,
       adequacyNote: checked.data.adequate ? checked.data.adequacyNote : null,
+      done: checked.data.done,
     });
   });
 
-  // { sceneId, utterance } → { options } — 3–5 neutral JA options.
-  // MUST NOT contain any improvement or hint of a correct choice; the client
-  // adds その他/自分で入力 itself. Response is rebuilt key-by-key so no extra
-  // field can ever leak (failure mode 1).
+  // { sceneId, utterance, turns? } → { options } — 3–5 neutral IntentOption
+  // objects (D11: textEn/textJa/icon). MUST NOT contain any improvement or
+  // hint of a correct choice; the client adds その他/自分で入力 itself.
+  // Response is rebuilt key-by-key so no extra field can ever leak (failure
+  // mode 1).
   router.post("/intent-options", async (req, res) => {
     const parsed = parseRequest(respondBodySchema, req, res);
     if (!parsed) return;
     const { scene, body } = parsed;
     let result: unknown;
     try {
-      result = await provider.getIntentOptions(scene, body.utterance);
+      result = await provider.getIntentOptions(scene, body.utterance, body.turns);
     } catch {
       result = null;
     }
     let checked = intentOptionsResultSchema.safeParse(result);
     if (!checked.success) {
       checked = intentOptionsResultSchema.safeParse(
-        await safety.getIntentOptions(scene, body.utterance),
+        await safety.getIntentOptions(scene, body.utterance, body.turns),
       );
     }
     if (!checked.success) {
       res.status(500).json({ error: "intent-options failed" });
       return;
     }
-    res.json({ options: checked.data.options });
+    res.json({
+      options: checked.data.options.map((o) => ({
+        textEn: o.textEn,
+        textJa: o.textJa,
+        icon: o.icon,
+      })),
+    });
   });
 
   // D8: { key } → { valid }. Stateless HMAC check; missing LICENSE_SECRET ⇒ invalid.
@@ -170,7 +182,8 @@ export function createApiRouter(provider: AiProvider = selectProvider()): Router
       result = null;
     }
     // Guard: schema + one-chunk/short rules + primaryDiff ⊂ improvedUtterance
-    // + meaningJa ≠ reasonJa. Any violation → safe deterministic improvement.
+    // + meaningEn ≠ reasonEn + meaningJa ≠ reasonJa. Any violation → safe
+    // deterministic improvement.
     if (findImprovementViolation(result) !== null) {
       result = await safety.improve(scene, body.utterance, body.intent);
     }
@@ -184,6 +197,8 @@ export function createApiRouter(provider: AiProvider = selectProvider()): Router
       selectedIntent: checked.data.selectedIntent,
       improvedUtterance: checked.data.improvedUtterance,
       primaryDiff: checked.data.primaryDiff,
+      meaningEn: checked.data.meaningEn,
+      reasonEn: checked.data.reasonEn,
       meaningJa: checked.data.meaningJa,
       reasonJa: checked.data.reasonJa,
     });

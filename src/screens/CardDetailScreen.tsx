@@ -16,6 +16,7 @@ import SceneStage from "../components/SceneStage";
 import MicInput from "../components/MicInput";
 import EnglishLine from "../components/EnglishLine";
 import StageDots from "../components/StageDots";
+import JaAssist from "../components/JaAssist";
 
 interface Attempt {
   utterance: string;
@@ -73,9 +74,10 @@ export default function CardDetailScreen({ card, scene, onBack, onCardsChanged }
     <div className="scene-flow card-detail">
       <header className="flow-top">
         <button type="button" className="ghost-btn" onClick={onBack}>
-          ← もどる
+          ← Back
         </button>
         <span className="flow-title card-stage-meta">
+          {card.via === "rescue" && <span className="rescue-chip">📌 Rescue</span>}
           <StageDots stage={card.masteryStage} />
           <span className="stage-label">{STAGE_LABELS[card.masteryStage]}</span>
         </span>
@@ -91,20 +93,26 @@ export default function CardDetailScreen({ card, scene, onBack, onCardsChanged }
 
       <section className="flow-panel">
         <div className="panel-block">
+          {card.via === "rescue" && card.contextNote && (
+            <p className="context-note">
+              📌 Needed at: <span lang="en">{card.contextNote}</span>
+            </p>
+          )}
+
           {scaffolding.promptSpontaneous && !attempt && (
-            <p className="coax">この場面。伝えたいことを、自分の言葉で。</p>
+            <p className="coax">Your turn — say it your own way.</p>
           )}
 
           {scaffolding.showEnglish && (
             <div className="diff-pair">
               <div className="diff-block diff-before">
-                <span className="diff-label">あのときの言葉</span>
+                <span className="diff-label">You said</span>
                 <p>
                   <EnglishLine sentence={card.originalUtterance} />
                 </p>
               </div>
               <div className="diff-block diff-after">
-                <span className="diff-label">この場面なら</span>
+                <span className="diff-label">In this scene</span>
                 <p className="diff-after-line">
                   <EnglishLine sentence={card.improvedUtterance} chunk={card.primaryDiff} speakable />
                 </p>
@@ -115,16 +123,22 @@ export default function CardDetailScreen({ card, scene, onBack, onCardsChanged }
           {scaffolding.showJapanese && (
             <div className="chunk-notes">
               <div className="chunk-note chunk-intent">
-                <span className="chunk-label">伝えたかったこと</span>
-                <p>{card.selectedIntent}</p>
+                <span className="chunk-label">Intent</span>
+                <p lang="en">{card.selectedIntent}</p>
               </div>
               <div className="chunk-note chunk-meaning">
-                <span className="chunk-label">意味</span>
-                <p>{card.meaningJa}</p>
+                <span className="chunk-label">Meaning</span>
+                {card.meaningEn && <p lang="en">{card.meaningEn}</p>}
+                <p lang="ja" className={card.meaningEn ? "chunk-ja-secondary" : undefined}>
+                  {card.meaningJa}
+                </p>
               </div>
               <div className="chunk-note chunk-reason">
-                <span className="chunk-label">この場面でのニュアンス</span>
-                <p>{card.reasonJa}</p>
+                <span className="chunk-label">Why it fits</span>
+                {card.reasonEn && <p lang="en">{card.reasonEn}</p>}
+                <p lang="ja" className={card.reasonEn ? "chunk-ja-secondary" : undefined}>
+                  {card.reasonJa}
+                </p>
               </div>
             </div>
           )}
@@ -136,7 +150,7 @@ export default function CardDetailScreen({ card, scene, onBack, onCardsChanged }
               aria-pressed={revealed}
               onClick={() => setRevealed((r) => !r)}
             >
-              {revealed ? "日本語を隠す" : "日本語を表示"}
+              {revealed ? "🇯🇵 Hide" : "🇯🇵 Show"}
             </button>
           )}
         </div>
@@ -144,31 +158,31 @@ export default function CardDetailScreen({ card, scene, onBack, onCardsChanged }
         <div className="panel-block review-block">
           {!attempt && (
             <>
-              <p className="coax">この瞬間で、もう一度話してみよう。</p>
-              <MicInput onSubmit={handleAttempt} disabled={busy} submitLabel="話してみる" />
+              <p className="coax">Say it again, right here.</p>
+              <MicInput onSubmit={handleAttempt} disabled={busy} submitLabel="Say it" />
             </>
           )}
 
           {attempt && attempt.evaluation && (
             <div className={`verdict ${attempt.evaluation.communicated ? "verdict-ok" : "verdict-soft"}`}>
               <span className="verdict-title">
-                {attempt.evaluation.communicated ? "伝わった！" : "もう少しで伝わりそう"}
+                {attempt.evaluation.communicated ? "It worked!" : "Almost there"}
               </span>
-              <p className="verdict-note">{attempt.evaluation.note}</p>
+              <JaAssist ja={attempt.evaluation.note} label="Note" />
             </div>
           )}
 
           {attempt && attempt.evalFailed && !recorded && (
             <div className="self-eval">
               <div className="notice" role="status">
-                いまは判定できませんでした。自分ではどう感じましたか？
+                Couldn't judge that one. How did it feel?
               </div>
               <div className="actions-row">
                 <button type="button" className="primary-btn" onClick={() => record(true)}>
-                  伝えられた
+                  I said it
                 </button>
                 <button type="button" className="ghost-btn" onClick={() => record(false)}>
-                  まだ難しい
+                  Still tricky
                 </button>
               </div>
             </div>
@@ -176,23 +190,21 @@ export default function CardDetailScreen({ card, scene, onBack, onCardsChanged }
 
           {attempt && (
             <p className="recap">
-              あなた <EnglishLine sentence={`“${attempt.utterance}”`} />
+              You said <EnglishLine sentence={`"${attempt.utterance}"`} />
             </p>
           )}
 
           {recorded && (
             <>
               <p className="soft-hint stage-shift">
-                {lastSuccess
-                  ? "この記憶、すこし深くなりました。"
-                  : "だいじょうぶ。日本語の支えに、もう一度もどります。"}
+                {lastSuccess ? "Nice — this one's sinking in." : "No worries — a bit more support next time."}
               </p>
               <div className="actions-row">
                 <button type="button" className="primary-btn" onClick={reviewAgain}>
-                  もう一度この瞬間へ
+                  🔁 Try again
                 </button>
                 <button type="button" className="ghost-btn" onClick={onBack}>
-                  もどる
+                  ← Back
                 </button>
               </div>
             </>

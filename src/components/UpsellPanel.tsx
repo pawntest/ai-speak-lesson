@@ -10,8 +10,8 @@ import { activateLicense, storeLicenseKey } from "../api";
 export type UpsellReason = "quota" | "cards";
 
 const MESSAGES: Record<UpsellReason, string> = {
-  quota: "今日の無料コーチ回数（3回）を使い切りました。Proで無制限に。",
-  cards: "無料で保存できるカードは10枚まで。Proで無制限に保存できます。",
+  quota: "You've used today's 3 free coach turns. Pro = unlimited.",
+  cards: "Free saves up to 10 cards. Pro = unlimited cards.",
 };
 
 interface UpsellPanelProps {
@@ -36,13 +36,13 @@ export default function UpsellPanel({ reason, onActivated }: UpsellPanelProps) {
       const result = await activateLicense(trimmed);
       if (result.valid) {
         storeLicenseKey(trimmed);
-        setMessage("Proが有効になりました。ようこそ！");
+        setMessage("Pro is active. Welcome!");
         onActivated();
       } else {
-        setMessage("このキーは確認できませんでした。入力をもう一度お確かめください。");
+        setMessage("That key didn't check out. Please try again.");
       }
     } catch {
-      setMessage("いまはキーを確認できませんでした。少し待ってからもう一度どうぞ。");
+      setMessage("Couldn't check the key right now. Try again in a moment.");
     } finally {
       setBusy(false);
     }
@@ -51,19 +51,19 @@ export default function UpsellPanel({ reason, onActivated }: UpsellPanelProps) {
   return (
     <div className="upsell" role="status">
       <p className="upsell-message">{MESSAGES[reason]}</p>
-      <p className="upsell-sub">明日になれば無料枠はまた使えます。学びは止まりません。</p>
+      <p className="upsell-sub">Free resets tomorrow — learning never stops.</p>
       <div className="actions-row">
         {upgradeUrl ? (
           <a className="primary-btn upsell-cta" href={upgradeUrl} target="_blank" rel="noreferrer">
-            Proにアップグレード ¥600/月
+            Go Pro — ¥600/mo
           </a>
         ) : (
           <button type="button" className="primary-btn upsell-cta" disabled>
-            アップグレード準備中
+            Pro coming soon
           </button>
         )}
         <button type="button" className="ghost-btn" onClick={() => setShowKeyForm((s) => !s)}>
-          ライセンスキーを入力
+          Enter license key
         </button>
       </div>
       {showKeyForm && (
@@ -72,13 +72,13 @@ export default function UpsellPanel({ reason, onActivated }: UpsellPanelProps) {
             type="text"
             value={key}
             onChange={(e) => setKey(e.target.value)}
-            placeholder="購入時に届いたキー"
+            placeholder="Your license key"
             autoCapitalize="none"
             autoCorrect="off"
             disabled={busy}
           />
           <button type="submit" className="say-submit" disabled={busy || !key.trim()}>
-            有効化
+            Activate
           </button>
         </form>
       )}

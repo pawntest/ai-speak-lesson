@@ -31,7 +31,7 @@ export default function EnglishLine({ sentence, chunk = null, speakable = false 
         <button
           type="button"
           className="en-listen"
-          aria-label="聞いてみる"
+          aria-label="Listen"
           onClick={() => speakLine(sentence)}
         >
           ▶

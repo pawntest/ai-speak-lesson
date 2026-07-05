@@ -29,10 +29,10 @@ export default function ProScreen({ licensed, onLicensed, onBack }: ProScreenPro
         onLicensed();
         setMessage(null);
       } else {
-        setMessage("このキーは確認できませんでした。入力をもう一度お確かめください。");
+        setMessage("That key didn't check out. Please try again.");
       }
     } catch {
-      setMessage("いまはキーを確認できませんでした。少し待ってからもう一度どうぞ。");
+      setMessage("Couldn't check the key right now. Try again in a moment.");
     } finally {
       setBusy(false);
     }
@@ -42,53 +42,53 @@ export default function ProScreen({ licensed, onLicensed, onBack }: ProScreenPro
     <div className="screen pro-screen">
       <header className="flow-top">
         <button type="button" className="ghost-btn" onClick={onBack}>
-          ← もどる
+          ← Back
         </button>
       </header>
 
       {licensed ? (
         <div className="pro-card pro-active">
           <span className="pro-badge">Pro</span>
-          <h1 className="pro-title">Proが有効です</h1>
-          <p className="pro-line">コーチもカードも、無制限に。よい練習を。</p>
+          <h1 className="pro-title">Pro is active</h1>
+          <p className="pro-line">Unlimited coaching, unlimited cards. Enjoy the practice.</p>
         </div>
       ) : (
         <>
           <div className="pro-card">
             <span className="pro-badge">Pro</span>
             <h1 className="pro-title">
-              ¥600<span className="pro-per">/月</span>
+              ¥600<span className="pro-per">/mo</span>
             </h1>
             <ul className="pro-perks">
-              <li>コーチ回数 無制限（無料は1日3回）</li>
-              <li>カード保存 無制限（無料は10枚）</li>
-              <li>新しいシーンを先行利用</li>
+              <li>♾️ Unlimited coach turns (free = 3/day)</li>
+              <li>📌 Unlimited saved cards (free = 10)</li>
+              <li>🆕 Early access to new scenes</li>
             </ul>
             {upgradeUrl ? (
               <a className="primary-btn upsell-cta" href={upgradeUrl} target="_blank" rel="noreferrer">
-                Proにアップグレード
+                Go Pro
               </a>
             ) : (
               <button type="button" className="primary-btn upsell-cta" disabled>
-                アップグレード準備中
+                Pro coming soon
               </button>
             )}
           </div>
 
           <div className="pro-license">
-            <h2 className="section-title">ライセンスキーをお持ちの方</h2>
+            <h2 className="section-title">Have a license key?</h2>
             <form className="license-form" onSubmit={handleActivate}>
               <input
                 type="text"
                 value={key}
                 onChange={(e) => setKey(e.target.value)}
-                placeholder="購入時に届いたキー"
+                placeholder="Your license key"
                 autoCapitalize="none"
                 autoCorrect="off"
                 disabled={busy}
               />
               <button type="submit" className="say-submit" disabled={busy || !key.trim()}>
-                有効化
+                Activate
               </button>
             </form>
             {message && <p className="soft-hint">{message}</p>}

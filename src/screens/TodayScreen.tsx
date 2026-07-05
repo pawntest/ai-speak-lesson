@@ -12,9 +12,9 @@ const SCENE_GLYPHS: Record<string, string> = {
 };
 
 const LEVEL_LABELS: Record<string, string> = {
-  beginner: "入門",
-  intermediate: "中級",
-  advanced: "上級",
+  beginner: "🌱 Beginner",
+  intermediate: "🌿 Intermediate",
+  advanced: "🌳 Advanced",
 };
 
 interface TodayScreenProps {
@@ -46,20 +46,20 @@ export default function TodayScreen({
           context <em>diff</em> english
           {licensed && <span className="pro-chip">Pro</span>}
         </span>
-        <h1 className="today-title">今日の場面</h1>
-        <p className="today-sub">場面に入って、ひとこと話してみよう。</p>
+        <h1 className="today-title">🎬 Today</h1>
+        <p className="today-sub">Pick a scene. Say one word — that's enough to start.</p>
       </header>
 
       {scenesFailed && (
         <div className="notice" role="status">
-          場面を読み込めませんでした。通信を確認して、もう一度どうぞ。{" "}
+          Couldn't load scenes. Check your connection and try again.{" "}
           <button type="button" className="ghost-btn" onClick={onRetryScenes}>
-            再読み込み
+            Reload
           </button>
         </div>
       )}
 
-      {scenes === null && !scenesFailed && <p className="soft-hint">場面を用意しています…</p>}
+      {scenes === null && !scenesFailed && <p className="soft-hint">Setting up scenes…</p>}
 
       <div className="scene-list">
         {scenes?.map((scene) => {
@@ -73,7 +73,7 @@ export default function TodayScreen({
                 <span className="scene-card-title">{scene.title}</span>
                 <span className="scene-card-meta">
                   <span className="level-chip">{LEVEL_LABELS[scene.level] ?? scene.level}</span>
-                  {count > 0 && <span className="count-chip">カード {count}枚</span>}
+                  {count > 0 && <span className="count-chip">📌 {count}</span>}
                 </span>
               </span>
               <span className="scene-card-go" aria-hidden>
@@ -86,7 +86,7 @@ export default function TodayScreen({
 
       {due.length > 0 && (
         <section className="due-section">
-          <h2 className="section-title">きょうの復習</h2>
+          <h2 className="section-title">🔁 Due for review</h2>
           <div className="due-list">
             {due.map((card) => (
               <button key={card.id} type="button" className="due-row" onClick={() => onOpenCard(card.id)}>

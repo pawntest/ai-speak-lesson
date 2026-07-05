@@ -36,11 +36,12 @@ export function scaffoldingForStage(stage: MasteryStage, revealed: boolean): Car
   return base;
 }
 
+/** D11: simple English + icon chrome (JA text is never chrome, only assist). */
 export const STAGE_LABELS: Record<MasteryStage, string> = {
-  0: "日本語つき",
-  1: "日本語をたたむ",
-  2: "英語だけ",
-  3: "場面だけ",
+  0: "🇯🇵 With Japanese",
+  1: "🇯🇵 Collapsed",
+  2: "🔤 English only",
+  3: "🎬 Scene only",
 };
 
 /**

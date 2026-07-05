@@ -886,15 +886,13 @@ input {
 
 /* Neutral by design: every option identical, no ordering emphasis (A3). */
 .intent-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   width: 100%;
-  min-height: 54px;
-  padding: 14px 18px;
   border: 1px solid var(--line);
   border-radius: 16px;
   background: var(--panel);
-  color: var(--text);
-  font-size: 1rem;
-  text-align: left;
   transition: border-color 0.15s ease;
 }
 
@@ -902,8 +900,35 @@ input {
   border-color: var(--text-faint);
 }
 
-.intent-option:disabled {
+.intent-option-pick {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 54px;
+  padding: 14px 18px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 1rem;
+  text-align: left;
+}
+
+.intent-option-pick:disabled {
   color: var(--text-faint);
+}
+
+.intent-option-icon {
+  font-size: 1.15rem;
+}
+
+.intent-option-en {
+  font-weight: 600;
+}
+
+.intent-option .ja-assist {
+  margin-left: 0;
+  margin-right: 14px;
 }
 
 .intent-free {
@@ -1512,4 +1537,278 @@ input {
 .adequate-block {
   display: grid;
   gap: 12px;
+}
+
+/* ---------------------------------------------------------------------------
+ * D11 — JA assist chip + single global header toggle
+ * ------------------------------------------------------------------------ */
+
+.ja-assist {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+.ja-assist-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--bg-raise);
+  font-size: 0.85rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.ja-assist-text {
+  color: var(--text-dim);
+  font-size: 0.88rem;
+}
+
+.ja-assist-toggle {
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  z-index: 50;
+  width: 38px;
+  height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--bg-raise);
+  font-size: 1rem;
+  opacity: 0.5;
+  box-shadow: 0 8px 20px -10px rgba(0, 0, 0, 0.7);
+}
+
+.ja-assist-toggle.ja-assist-on {
+  opacity: 1;
+  border-color: var(--accent);
+}
+
+/* ---------------------------------------------------------------------------
+ * D12 — conversation transcript, wrap panel, help button + overlay
+ * ------------------------------------------------------------------------ */
+
+.transcript {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 4px 0;
+}
+
+.transcript-line {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 0.84rem;
+  color: var(--text-faint);
+  opacity: 0.65;
+}
+
+.transcript-icon {
+  flex-shrink: 0;
+}
+
+.transcript-latest {
+  opacity: 1;
+  color: var(--text);
+  font-size: 0.98rem;
+  font-family: var(--serif);
+}
+
+.transcript-npc {
+  color: var(--text-dim);
+}
+
+.flow-top {
+  position: relative;
+}
+
+.help-btn {
+  margin-left: auto;
+  min-height: 40px;
+  padding: 8px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.wrap-panel {
+  text-align: center;
+  padding: 24px 12px;
+}
+
+.wrap-title {
+  margin: 0 0 10px;
+  font-size: 1.4rem;
+  font-weight: 700;
+}
+
+.verdict-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+}
+
+.verdict-inline .verdict-title {
+  font-size: 1rem;
+}
+
+.completion-note {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 0.92rem;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.help-overlay-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 5, 3, 0.55);
+  z-index: 80;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.help-overlay {
+  width: min(85%, 420px);
+  max-width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  background: var(--bg-raise);
+  border-left: 1px solid var(--line);
+  box-shadow: -20px 0 60px -20px rgba(0, 0, 0, 0.8);
+  padding: 22px 18px calc(24px + env(safe-area-inset-bottom));
+  animation: help-slide-in 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes help-slide-in {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .help-overlay {
+    animation: none;
+  }
+}
+
+.help-overlay-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.help-heading {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.help-close {
+  flex-shrink: 0;
+}
+
+.help-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.help-or {
+  margin: 4px 0 0;
+  color: var(--text-faint);
+  font-size: 0.85rem;
+}
+
+.help-saved {
+  margin: 0;
+  color: var(--ok);
+  font-weight: 700;
+  font-size: 0.92rem;
+}
+
+.help-continue {
+  margin-top: 6px;
+}
+
+/* ---------------------------------------------------------------------------
+ * D12 — rescue cards + card-detail context note
+ * ------------------------------------------------------------------------ */
+
+.rescue-group {
+  margin-top: 6px;
+}
+
+.rescue-group-title {
+  margin: 10px 4px 8px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-faint);
+  letter-spacing: 0.06em;
+}
+
+.card-row-rescue {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  min-height: auto;
+}
+
+.card-row-context {
+  font-size: 0.78rem;
+  color: var(--text-faint);
+  font-style: italic;
+  white-space: normal;
+}
+
+.rescue-chip {
+  font-size: 0.7rem;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  margin-right: 6px;
+}
+
+.context-note {
+  margin: 0 0 4px;
+  color: var(--text-faint);
+  font-size: 0.85rem;
+}
+
+.chunk-ja-secondary {
+  opacity: 0.75;
+}
+
+/* ------------------------------------------------------------- responsive */
+
+@media (min-width: 760px) {
+  .help-overlay {
+    width: min(60%, 420px);
+  }
 }

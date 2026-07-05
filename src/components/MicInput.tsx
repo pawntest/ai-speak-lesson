@@ -17,8 +17,8 @@ interface MicInputProps {
 export default function MicInput({
   onSubmit,
   disabled = false,
-  submitLabel = "伝える",
-  placeholder = "英語でひとこと（一言でもOK）",
+  submitLabel = "Say it",
+  placeholder = "Say it in English — one word is fine",
   autoFocus = false,
 }: MicInputProps) {
   const [text, setText] = useState("");
@@ -83,7 +83,7 @@ export default function MicInput({
           className={`mic-btn${listening ? " mic-live" : ""}`}
           onClick={toggleMic}
           disabled={disabled}
-          aria-label={listening ? "聞き取りを止める" : "声で答える"}
+          aria-label={listening ? "Stop listening" : "Answer by voice"}
           aria-pressed={listening}
         >
           {listening ? "●" : "🎙"}
@@ -95,7 +95,7 @@ export default function MicInput({
         type="text"
         lang="en"
         value={text}
-        placeholder={listening ? "聞き取っています…" : placeholder}
+        placeholder={listening ? "Listening…" : placeholder}
         onChange={(e) => setText(e.target.value)}
         disabled={disabled}
         autoCapitalize="none"

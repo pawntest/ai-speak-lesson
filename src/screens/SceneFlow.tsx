@@ -3,11 +3,17 @@
  * context-difference → retry. The scene stage stays mounted (and alive)
  * the whole time; panels below change with the flow phase.
  *
- * improve() is only ever called from handleIntent — structurally after an
- * intention has been chosen (A2). The reducer guards it a second time.
+ * D12: the experience/responded loop repeats (CONTINUE) until the exchange
+ * is naturally `done`; a persistent 🆘 Help button opens StuckHelpOverlay at
+ * any point in that loop, running the SAME INTENT_SELECTED/IMPROVEMENT_LOADED
+ * reducer path as the main reflection flow (A2 holds for rescue cards too).
+ *
+ * improve() is only ever called from handleIntent/handleHelpIntent —
+ * structurally after an intention has been chosen (A2). The reducer guards
+ * it a second time.
  */
 import { useCallback, useEffect, useReducer, useState } from "react";
-import type { Scene } from "../../shared/types";
+import type { ConversationTurn, Scene } from "../../shared/types";
 import { evaluateRetry, fetchIntentOptions, improve, respond, QuotaExceededError } from "../api";
 import { cardStore } from "../store/cards";
 import { flowReducer, initialFlowState } from "../flow";
@@ -15,8 +21,10 @@ import SceneStage from "../components/SceneStage";
 import MicInput from "../components/MicInput";
 import EnglishLine from "../components/EnglishLine";
 import UpsellPanel, { type UpsellReason } from "../components/UpsellPanel";
+import JaAssist from "../components/JaAssist";
+import StuckHelpOverlay from "../components/StuckHelpOverlay";
 
-const SERVER_NOT_READY = "サーバーの準備がまだ整っていないみたいです。";
+const SERVER_NOT_READY = "The server isn't ready yet — your words are kept here, so you can carry on.";
 
 /** D8: free plan saves up to 10 cards (server enforces the coach quota). */
 export const FREE_CARD_LIMIT = 10;
@@ -29,6 +37,29 @@ interface SceneFlowProps {
   onCardsChanged(): void;
 }
 
+function ConversationTranscript({ turns }: { turns: ConversationTurn[] }) {
+  if (turns.length === 0) return null;
+  const recent = turns.slice(-6);
+  return (
+    <div className="transcript" aria-label="Conversation so far">
+      {recent.map((turn, i) => {
+        const latest = i === recent.length - 1;
+        return (
+          <p
+            key={`${i}-${turn.speaker}`}
+            className={`transcript-line transcript-${turn.speaker}${latest ? " transcript-latest" : ""}`}
+          >
+            <span className="transcript-icon" aria-hidden>
+              {turn.speaker === "learner" ? "🗣️" : "💬"}
+            </span>
+            <span lang="en">{turn.text}</span>
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function SceneFlow({ scene, licensed, onLicensed, onExit, onCardsChanged }: SceneFlowProps) {
   const [state, dispatch] = useReducer(flowReducer, initialFlowState);
   const [busy, setBusy] = useState(false);
@@ -38,19 +69,24 @@ export default function SceneFlow({ scene, licensed, onLicensed, onExit, onCards
   const [freeIntent, setFreeIntent] = useState("");
   const [upsell, setUpsell] = useState<UpsellReason | null>(null);
 
+  const [helpBusy, setHelpBusy] = useState(false);
+  const [helpSavedCardId, setHelpSavedCardId] = useState<string | null>(null);
+  const [helpUpsell, setHelpUpsell] = useState<UpsellReason | null>(null);
+
   const { phase } = state;
 
   const loadOptions = useCallback(async () => {
     if (state.utterance === null) return;
     setOptionsBusy(true);
     try {
-      const result = await fetchIntentOptions(scene.id, state.utterance);
+      const result = await fetchIntentOptions(scene.id, state.utterance, state.turns);
       dispatch({ type: "OPTIONS_LOADED", options: result.options });
     } catch {
       dispatch({ type: "OPTIONS_FAILED" });
     } finally {
       setOptionsBusy(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scene.id, state.utterance]);
 
   // Fetch intent options when reflection opens (once; kept across intents).
@@ -61,10 +97,12 @@ export default function SceneFlow({ scene, licensed, onLicensed, onExit, onCards
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase]);
 
-  async function handleFirstUtterance(text: string) {
+  async function handleUtterance(text: string) {
+    // D12: no-op unless we're mid-conversation, waiting on the next reply.
+    dispatch({ type: "CONTINUE" });
     setBusy(true);
     try {
-      const result = await respond(scene.id, text);
+      const result = await respond(scene.id, text, state.turns);
       dispatch({
         type: "RESPONDED",
         utterance: text,
@@ -72,6 +110,7 @@ export default function SceneFlow({ scene, licensed, onLicensed, onExit, onCards
         completionNote: result.completionNote,
         adequate: result.adequate,
         adequacyNote: result.adequacyNote,
+        done: result.done,
       });
     } catch {
       dispatch({ type: "RESPOND_FAILED", utterance: text });
@@ -99,6 +138,53 @@ export default function SceneFlow({ scene, licensed, onLicensed, onExit, onCards
     } finally {
       setBusy(false);
     }
+  }
+
+  async function handleHelpIntent(intent: string) {
+    const trimmed = intent.trim();
+    if (!trimmed || state.utterance === null || helpBusy) return;
+    dispatch({ type: "INTENT_SELECTED", intent: trimmed });
+    setHelpBusy(true);
+    try {
+      const improvement = await improve(scene.id, state.utterance, trimmed);
+      dispatch({ type: "IMPROVEMENT_LOADED", improvement });
+      if (!licensed && cardStore.listCards().length >= FREE_CARD_LIMIT) {
+        setHelpUpsell("cards");
+        setHelpSavedCardId(null);
+      } else {
+        const lastNpcLine = [...state.turns].reverse().find((t) => t.speaker === "npc")?.text ?? undefined;
+        const card = cardStore.saveCard({
+          sceneId: scene.id,
+          originalUtterance: improvement.originalUtterance,
+          selectedIntent: improvement.selectedIntent,
+          improvedUtterance: improvement.improvedUtterance,
+          primaryDiff: improvement.primaryDiff,
+          meaningEn: improvement.meaningEn,
+          reasonEn: improvement.reasonEn,
+          meaningJa: improvement.meaningJa,
+          reasonJa: improvement.reasonJa,
+          via: "rescue",
+          contextNote: lastNpcLine,
+        });
+        setHelpSavedCardId(card.id);
+        setHelpUpsell(null);
+        onCardsChanged();
+      }
+    } catch (error) {
+      if (error instanceof QuotaExceededError) {
+        setHelpUpsell("quota");
+      } else {
+        dispatch({ type: "IMPROVE_FAILED" });
+      }
+    } finally {
+      setHelpBusy(false);
+    }
+  }
+
+  function closeHelp() {
+    dispatch({ type: "HELP_CLOSED" });
+    setHelpSavedCardId(null);
+    setHelpUpsell(null);
   }
 
   function startRetry() {
@@ -131,8 +217,11 @@ export default function SceneFlow({ scene, licensed, onLicensed, onExit, onCards
       selectedIntent: state.improvement.selectedIntent,
       improvedUtterance: state.improvement.improvedUtterance,
       primaryDiff: state.improvement.primaryDiff,
+      meaningEn: state.improvement.meaningEn,
+      reasonEn: state.improvement.reasonEn,
       meaningJa: state.improvement.meaningJa,
       reasonJa: state.improvement.reasonJa,
+      via: "diff",
     });
     setSavedCardId(card.id);
     onCardsChanged();
@@ -152,14 +241,25 @@ export default function SceneFlow({ scene, licensed, onLicensed, onExit, onCards
   const saved = savedCardId !== null;
   const stageCompact = phase === "reflection" || phase === "diff" || phase === "retryResult";
   const showNpcReply = phase === "responded" && !state.respondFailed ? state.npcReply : null;
+  const showConversationPanel = phase === "experience" || (phase === "responded" && !state.done);
+  const canOpenHelp = phase === "experience" || phase === "responded";
 
   return (
     <div className="scene-flow">
       <header className="flow-top">
         <button type="button" className="ghost-btn" onClick={onExit}>
-          ← 今日へ
+          ← Today
         </button>
         <span className="flow-title">{scene.title}</span>
+        {canOpenHelp && (
+          <button
+            type="button"
+            className="help-btn"
+            onClick={() => dispatch({ type: "HELP_OPENED" })}
+          >
+            🆘 Help…?
+          </button>
+        )}
       </header>
 
       <SceneStage
@@ -170,84 +270,93 @@ export default function SceneFlow({ scene, licensed, onLicensed, onExit, onCards
         compact={stageCompact}
       />
 
-      <section className="flow-panel">
-        {phase === "experience" && (
-          <div className="panel-block">
-            <p className="coax">あなたの番。声でも、入力でも。一言でだいじょうぶ。</p>
-            <MicInput onSubmit={handleFirstUtterance} disabled={busy} autoFocus />
-          </div>
-        )}
+      <ConversationTranscript turns={state.turns} />
 
-        {phase === "responded" && (
+      <section className="flow-panel">
+        {showConversationPanel && (
           <div className="panel-block">
             {state.respondFailed && (
               <div className="notice" role="status">
                 {SERVER_NOT_READY}
-                あなたの言葉はこの場で受け取りました。このまま振り返りに進めます。
               </div>
             )}
-            <p className="recap">
-              あなた <EnglishLine sentence={`“${state.utterance ?? ""}”`} />
-            </p>
-            {state.completionNote && (
-              <p className="completion-note" lang="en">
-                {state.completionNote}
+            {phase === "responded" && !state.respondFailed && state.completionNote && (
+              <p className="completion-note">
+                Heads up <JaAssist ja={state.completionNote} label="Heads up" />
               </p>
             )}
-            {state.adequate ? (
-              /* D9: the words already worked — celebrate; reflection is optional. */
-              <div className="adequate-block">
-                <div className="verdict verdict-ok">
-                  <span className="verdict-title">伝わりました！</span>
-                  {state.adequacyNote && <p className="verdict-note">{state.adequacyNote}</p>}
-                </div>
-                <div className="actions">
-                  <button type="button" className="primary-btn" onClick={onExit}>
-                    次の場面へ
-                  </button>
-                  <button type="button" className="ghost-btn" onClick={() => dispatch({ type: "REFLECT" })}>
-                    それでも振り返ってみる
-                  </button>
-                </div>
+            {phase === "responded" && !state.respondFailed && state.adequate && (
+              <div className="verdict verdict-ok verdict-inline">
+                <span className="verdict-title">It worked!</span>
+                {state.adequacyNote && <JaAssist ja={state.adequacyNote} label="It worked" />}
               </div>
-            ) : (
-              <button type="button" className="primary-btn" onClick={() => dispatch({ type: "REFLECT" })}>
-                本当は何を伝えたかった？
-              </button>
             )}
+            <p className="coax">Your turn — one word is fine.</p>
+            <MicInput onSubmit={handleUtterance} disabled={busy} autoFocus />
+            <button type="button" className="ghost-btn subtle" onClick={() => dispatch({ type: "REFLECT" })}>
+              💭 What did I want to say?
+            </button>
+          </div>
+        )}
+
+        {phase === "responded" && state.done && (
+          <div className="panel-block wrap-panel">
+            <p className="wrap-title">Nice! You did it. 🎉</p>
+            {state.adequate && state.adequacyNote && (
+              <div className="verdict verdict-ok">
+                <span className="verdict-title">It worked!</span>
+                <JaAssist ja={state.adequacyNote} label="It worked" />
+              </div>
+            )}
+            <div className="actions">
+              <button type="button" className="primary-btn" onClick={onExit}>
+                Next scene →
+              </button>
+              <button type="button" className="ghost-btn" onClick={() => dispatch({ type: "REFLECT" })}>
+                💭 Reflect
+              </button>
+            </div>
           </div>
         )}
 
         {phase === "reflection" && (
           <div className="panel-block">
-            <h2 className="reflect-heading">本当は何を伝えたかった？</h2>
+            <h2 className="reflect-heading">
+              What did you want to say? <JaAssist ja="本当は何を伝えたかった？" label="Heading" />
+            </h2>
             <p className="recap">
-              あなた <EnglishLine sentence={`“${state.utterance ?? ""}”`} />
+              You said <EnglishLine sentence={`"${state.utterance ?? ""}"`} />
             </p>
 
-            {optionsBusy && <p className="soft-hint">選択肢を用意しています…</p>}
+            {optionsBusy && <p className="soft-hint">Finding a few ideas…</p>}
             {state.optionsFailed && (
               <div className="notice" role="status">
-                候補を用意できませんでした。{SERVER_NOT_READY}
-                下の欄に自分の言葉で書けます。{" "}
+                Couldn't load ideas. {SERVER_NOT_READY} You can still type your own below.{" "}
                 <button type="button" className="ghost-btn" onClick={() => void loadOptions()}>
-                  もう一度取得
+                  Try again
                 </button>
               </div>
             )}
 
             {state.intentOptions && (
-              <div className="intent-options" role="group" aria-label="伝えたかったこと">
+              <div className="intent-options" role="group" aria-label="Intentions">
                 {state.intentOptions.map((option) => (
-                  <button
-                    key={option}
-                    type="button"
-                    className="intent-option"
-                    disabled={busy}
-                    onClick={() => void handleIntent(option)}
-                  >
-                    {option}
-                  </button>
+                  <div key={option.textEn} className="intent-option">
+                    <button
+                      type="button"
+                      className="intent-option-pick"
+                      disabled={busy}
+                      onClick={() => void handleIntent(option.textEn)}
+                    >
+                      <span className="intent-option-icon" aria-hidden>
+                        {option.icon}
+                      </span>
+                      <span className="intent-option-en" lang="en">
+                        {option.textEn}
+                      </span>
+                    </button>
+                    <JaAssist ja={option.textJa} label={option.textEn} />
+                  </div>
                 ))}
               </div>
             )}
@@ -259,45 +368,44 @@ export default function SceneFlow({ scene, licensed, onLicensed, onExit, onCards
                 void handleIntent(freeIntent);
               }}
             >
-              <label htmlFor="free-intent">その他 / 自分で入力</label>
+              <label htmlFor="free-intent">Or type your own idea</label>
               <div className="intent-free-row">
                 <input
                   id="free-intent"
                   type="text"
                   value={freeIntent}
                   onChange={(e) => setFreeIntent(e.target.value)}
-                  placeholder="例：もう少し待ってほしかった"
+                  placeholder="e.g. I wanted a recommendation"
                   disabled={busy}
                 />
                 <button type="submit" className="say-submit" disabled={busy || !freeIntent.trim()}>
-                  これで振り返る
+                  Reflect
                 </button>
               </div>
             </form>
 
             {state.improveFailed && (
               <div className="notice" role="status">
-                言い方の提案を取得できませんでした。{SERVER_NOT_READY}
-                少し待って、もう一度選んでみてください。
+                Couldn't load a suggestion. {SERVER_NOT_READY}
               </div>
             )}
-            {busy && <p className="soft-hint">この場面に合う言い方をさがしています…</p>}
+            {busy && <p className="soft-hint">Finding the right words for this scene…</p>}
             {upsell === "quota" && <UpsellPanel reason="quota" onActivated={handleActivated} />}
           </div>
         )}
 
         {phase === "diff" && state.improvement && (
           <div className="panel-block diff-view">
-            <p className="intent-tag">「{state.improvement.selectedIntent}」を伝えるなら</p>
+            <p className="intent-tag">To say: “{state.improvement.selectedIntent}”</p>
             <div className="diff-pair">
               <div className="diff-block diff-before">
-                <span className="diff-label">あなたの言葉</span>
+                <span className="diff-label">You said</span>
                 <p>
                   <EnglishLine sentence={state.improvement.originalUtterance} />
                 </p>
               </div>
               <div className="diff-block diff-after">
-                <span className="diff-label">この場面なら</span>
+                <span className="diff-label">In this scene</span>
                 <p className="diff-after-line">
                   <EnglishLine
                     sentence={state.improvement.improvedUtterance}
@@ -309,24 +417,26 @@ export default function SceneFlow({ scene, licensed, onLicensed, onExit, onCards
             </div>
             <div className="chunk-notes">
               <div className="chunk-note chunk-meaning">
-                <span className="chunk-label">意味</span>
-                <p>{state.improvement.meaningJa}</p>
+                <span className="chunk-label">Meaning</span>
+                <p lang="en">{state.improvement.meaningEn}</p>
+                <JaAssist ja={state.improvement.meaningJa} label="Meaning" />
               </div>
               <div className="chunk-note chunk-reason">
-                <span className="chunk-label">この場面でのニュアンス</span>
-                <p>{state.improvement.reasonJa}</p>
+                <span className="chunk-label">Why it fits</span>
+                <p lang="en">{state.improvement.reasonEn}</p>
+                <JaAssist ja={state.improvement.reasonJa} label="Why it fits" />
               </div>
             </div>
             <div className="actions">
               <button type="button" className="primary-btn" onClick={startRetry}>
-                いま声に出して言ってみよう
+                🔊 Say it out loud
               </button>
               <div className="actions-row">
                 <button type="button" className="ghost-btn" onClick={handleSave} disabled={saved}>
-                  {saved ? "カードに保存済み ✓" : "カードに保存"}
+                  {saved ? "📌 Saved ✓" : "📌 Save card"}
                 </button>
                 <button type="button" className="ghost-btn" onClick={anotherIntent}>
-                  別の意図で振り返る
+                  Another intention
                 </button>
               </div>
             </div>
@@ -336,10 +446,8 @@ export default function SceneFlow({ scene, licensed, onLicensed, onExit, onCards
 
         {phase === "retry" && (
           <div className="panel-block">
-            <p className="coax">
-              同じ瞬間にもどりました。「{state.selectedIntent}」— 今度は伝わるように。
-            </p>
-            <MicInput onSubmit={handleRetryUtterance} disabled={busy} submitLabel="もう一度伝える" autoFocus />
+            <p className="coax">Same moment again — “{state.selectedIntent}”. Say it so it lands.</p>
+            <MicInput onSubmit={handleRetryUtterance} disabled={busy} submitLabel="Say it again" autoFocus />
           </div>
         )}
 
@@ -348,41 +456,57 @@ export default function SceneFlow({ scene, licensed, onLicensed, onExit, onCards
             {state.retryEvaluation ? (
               <div className={`verdict ${state.retryEvaluation.communicated ? "verdict-ok" : "verdict-soft"}`}>
                 <span className="verdict-title">
-                  {state.retryEvaluation.communicated ? "伝わった！" : "もう少しで伝わりそう"}
+                  {state.retryEvaluation.communicated ? "It worked!" : "Almost there"}
                 </span>
-                <p className="verdict-note">{state.retryEvaluation.note}</p>
+                <JaAssist ja={state.retryEvaluation.note} label="Note" />
               </div>
             ) : (
               <div className="notice" role="status">
-                判定はまだできませんでした。{SERVER_NOT_READY}
-                声に出せたこと自体が、いちばんの練習です。
+                {SERVER_NOT_READY} Saying it out loud is already good practice.
               </div>
             )}
             {state.retryUtterance && (
               <p className="recap">
-                あなた <EnglishLine sentence={`“${state.retryUtterance}”`} />
+                You said <EnglishLine sentence={`"${state.retryUtterance}"`} />
               </p>
             )}
             <div className="actions">
               <button type="button" className="primary-btn" onClick={handleSave} disabled={saved}>
-                {saved ? "カードに保存済み ✓" : "この気づきをカードに保存"}
+                {saved ? "📌 Saved ✓" : "📌 Save card"}
               </button>
               <div className="actions-row">
                 <button type="button" className="ghost-btn" onClick={startRetry}>
-                  もう一度この瞬間へ
+                  🔁 Try again
                 </button>
                 <button type="button" className="ghost-btn" onClick={anotherIntent}>
-                  別の意図で振り返る
+                  Another intention
                 </button>
               </div>
               <button type="button" className="ghost-btn subtle" onClick={onExit}>
-                今日の場面へ戻る
+                ← Today
               </button>
             </div>
             {upsell === "cards" && <UpsellPanel reason="cards" onActivated={handleActivated} />}
           </div>
         )}
       </section>
+
+      <StuckHelpOverlay
+        open={state.helpOpen}
+        sceneId={scene.id}
+        utterance={state.utterance}
+        turns={state.turns}
+        busy={helpBusy}
+        improvement={state.improvement}
+        saved={helpSavedCardId !== null}
+        upsell={helpUpsell}
+        onPick={(intent) => void handleHelpIntent(intent)}
+        onActivated={() => {
+          setHelpUpsell(null);
+          onLicensed();
+        }}
+        onClose={closeHelp}
+      />
     </div>
   );
 }

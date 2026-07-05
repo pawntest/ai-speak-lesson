@@ -6,13 +6,17 @@ import { describe, expect, it } from "vitest";
 import { improvementSchema, intentOptionsResultSchema, retryEvaluationSchema } from "../shared/schemas";
 import { createCardStore, type NewCardInput } from "./store/cards";
 
+const intentOption = (i: number) => ({ textEn: `Option ${i}`, textJa: `選択肢${i}`, icon: "💬" });
+
 describe("shared schemas", () => {
-  it("parses a valid Improvement", () => {
+  it("parses a valid Improvement (D11: meaningEn/reasonEn required)", () => {
     const result = improvementSchema.safeParse({
       originalUtterance: "Coffee.",
-      selectedIntent: "コーヒーを注文したかった",
+      selectedIntent: "Order a coffee",
       improvedUtterance: "I'd like a coffee.",
       primaryDiff: "I'd like a",
+      meaningEn: "A polite way to ask for something.",
+      reasonEn: "It names what you want, not just the item.",
       meaningJa: "自分の希望を丁寧に伝える",
       reasonJa: "商品名だけでなく、注文していることを伝えるため",
     });
@@ -25,16 +29,34 @@ describe("shared schemas", () => {
       selectedIntent: "x",
       improvedUtterance: "I'd like a coffee.",
       primaryDiff: "I'd like a",
+      meaningEn: "a",
+      reasonEn: "b",
       meaningJa: "y",
     });
     expect(result.success).toBe(false);
   });
 
-  it("enforces 3–5 intent options", () => {
-    expect(intentOptionsResultSchema.safeParse({ options: ["a", "b"] }).success).toBe(false);
-    expect(intentOptionsResultSchema.safeParse({ options: ["a", "b", "c", "d"] }).success).toBe(true);
+  it("enforces 3–5 intent options (D11: IntentOption objects)", () => {
+    expect(intentOptionsResultSchema.safeParse({ options: [intentOption(1), intentOption(2)] }).success).toBe(
+      false,
+    );
     expect(
-      intentOptionsResultSchema.safeParse({ options: ["a", "b", "c", "d", "e", "f"] }).success,
+      intentOptionsResultSchema.safeParse({
+        options: [intentOption(1), intentOption(2), intentOption(3), intentOption(4)],
+      }).success,
+    ).toBe(true);
+    expect(
+      intentOptionsResultSchema.safeParse({
+        options: [1, 2, 3, 4, 5, 6].map(intentOption),
+      }).success,
+    ).toBe(false);
+  });
+
+  it("rejects an intent option missing a field", () => {
+    expect(
+      intentOptionsResultSchema.safeParse({
+        options: [{ textEn: "Order a coffee", icon: "☕" }, intentOption(2), intentOption(3)],
+      }).success,
     ).toBe(false);
   });
 
@@ -48,9 +70,11 @@ function makeInput(overrides: Partial<NewCardInput> = {}): NewCardInput {
   return {
     sceneId: "cafe-order",
     originalUtterance: "Coffee.",
-    selectedIntent: "コーヒーを注文したかった",
+    selectedIntent: "Order a coffee",
     improvedUtterance: "I'd like a coffee.",
     primaryDiff: "I'd like a",
+    meaningEn: "A polite way to ask for something.",
+    reasonEn: "It names what you want, not just the item.",
     meaningJa: "自分の希望を丁寧に伝える",
     reasonJa: "注文していることを伝えるため",
     ...overrides,
@@ -111,5 +135,18 @@ describe("CardStore", () => {
     store.saveCard(makeInput());
     store.clear();
     expect(store.listCards()).toHaveLength(0);
+  });
+
+  it("D12: saves a rescue card with via + contextNote", () => {
+    const store = createCardStore(makeStubStorage());
+    const card = store.saveCard(
+      makeInput({
+        via: "rescue",
+        contextNote: "Do you have a reservation?",
+        improvedUtterance: "Sorry, could you say that again?",
+      }),
+    );
+    expect(card.via).toBe("rescue");
+    expect(card.contextNote).toBe("Do you have a reservation?");
   });
 });

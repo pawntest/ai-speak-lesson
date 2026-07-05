@@ -10,6 +10,7 @@
  */
 import { intentOptionsResultSchema, retryEvaluationSchema } from "../../shared/schemas";
 import type {
+  ConversationTurn,
   Improvement,
   IntentOptionsResult,
   RespondResult,
@@ -36,7 +37,20 @@ export interface GeminiProviderOptions {
 const OPTIONS_SCHEMA = {
   type: "OBJECT",
   properties: {
-    options: { type: "ARRAY", items: { type: "STRING" }, minItems: 3, maxItems: 5 },
+    options: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: {
+          textEn: { type: "STRING" },
+          textJa: { type: "STRING" },
+          icon: { type: "STRING" },
+        },
+        required: ["textEn", "textJa", "icon"],
+      },
+      minItems: 3,
+      maxItems: 5,
+    },
   },
   required: ["options"],
 };
@@ -46,10 +60,12 @@ const IMPROVEMENT_SCHEMA = {
   properties: {
     improvedUtterance: { type: "STRING" },
     primaryDiff: { type: "STRING" },
+    meaningEn: { type: "STRING" },
+    reasonEn: { type: "STRING" },
     meaningJa: { type: "STRING" },
     reasonJa: { type: "STRING" },
   },
-  required: ["improvedUtterance", "primaryDiff", "meaningJa", "reasonJa"],
+  required: ["improvedUtterance", "primaryDiff", "meaningEn", "reasonEn", "meaningJa", "reasonJa"],
 };
 
 const RESPOND_SCHEMA = {
@@ -59,8 +75,9 @@ const RESPOND_SCHEMA = {
     completionNote: { type: "STRING", nullable: true },
     adequate: { type: "BOOLEAN" },
     adequacyNote: { type: "STRING", nullable: true },
+    done: { type: "BOOLEAN" },
   },
-  required: ["npcReply", "adequate"],
+  required: ["npcReply", "adequate", "done"],
 };
 
 const RETRY_SCHEMA = {
@@ -94,6 +111,12 @@ export class GeminiProvider implements AiProvider {
     ].join("\n");
   }
 
+  /** D12: conversation history as "learner: …" / "npc: …" lines. */
+  private historyLines(turns?: ConversationTurn[]): string {
+    if (!turns || turns.length === 0) return "(none)";
+    return turns.map((t) => `${t.speaker}: ${t.text}`).join("\n");
+  }
+
   /** One structured-output call. Throws on any transport/parse problem. */
   private async generate(prompt: string, responseSchema: object): Promise<unknown> {
     const res = await this.fetchFn(`${API_BASE}/${this.model}:generateContent`, {
@@ -120,22 +143,31 @@ export class GeminiProvider implements AiProvider {
     return JSON.parse(text) as unknown;
   }
 
-  async getIntentOptions(scene: Scene, utterance: string): Promise<IntentOptionsResult> {
+  async getIntentOptions(
+    scene: Scene,
+    utterance: string,
+    turns?: ConversationTurn[],
+  ): Promise<IntentOptionsResult> {
     try {
       const prompt = [
         "You help a Japanese beginner learner of English reflect on what they truly wanted to convey.",
         this.sceneContext(scene),
-        `The learner said: "${utterance}"`,
-        "List 3 to 5 candidate intentions the learner may have had, in natural Japanese,",
-        "all neutral and at the same level of abstraction.",
+        "Conversation so far:",
+        this.historyLines(turns),
+        `The learner just said: "${utterance}"`,
+        "List 3 to 5 candidate intentions, each as {textEn, textJa, icon}:",
+        "- textEn: at most 6 very simple English words naming the INTENTION (A1 level), e.g. 'I wanted to order'",
+        "- textJa: natural Japanese equivalent",
+        "- icon: exactly one emoji picturing the intention",
         "STRICT RULES: never rank them, never mark or hint at a correct one,",
-        "and never include any English rewrite, correction, or improved expression.",
+        "and never include any rewrite, correction, or improved version of the learner's own words —",
+        "textEn names the intention, it is not a fix.",
       ].join("\n");
       const raw = await this.generate(prompt, OPTIONS_SCHEMA);
       const parsed = intentOptionsResultSchema.parse(raw);
       return { options: parsed.options };
     } catch {
-      return this.fallback.getIntentOptions(scene, utterance);
+      return this.fallback.getIntentOptions(scene, utterance, turns);
     }
   }
 
@@ -152,6 +184,9 @@ export class GeminiProvider implements AiProvider {
         `- Short, natural, beginner-level: one sentence, at most ${MAX_IMPROVED_WORDS} words. Not the longest or most polite option.`,
         "- Preserve the learner's original words where reasonable.",
         "- primaryDiff must be the added chunk, copied verbatim as a substring of improvedUtterance.",
+        "- meaningEn: what the chunk means, in very simple A1 English (one short sentence).",
+        "- reasonEn: why it fits THIS scene, in very simple A1 English (one short sentence).",
+        "- meaningEn and reasonEn must differ from each other; also provide meaningJa/reasonJa in Japanese as before.",
         "- meaningJa: what the chunk means (Japanese). reasonJa: why it fits THIS scene (Japanese). They must be different texts.",
       ].join("\n");
       const raw = await this.generate(prompt, IMPROVEMENT_SCHEMA);
@@ -168,6 +203,8 @@ export class GeminiProvider implements AiProvider {
         selectedIntent: intent,
         improvedUtterance: candidate.improvedUtterance,
         primaryDiff: candidate.primaryDiff,
+        meaningEn: candidate.meaningEn,
+        reasonEn: candidate.reasonEn,
         meaningJa: candidate.meaningJa,
         reasonJa: candidate.reasonJa,
       };
@@ -176,12 +213,18 @@ export class GeminiProvider implements AiProvider {
     }
   }
 
-  async respond(scene: Scene, utterance: string): Promise<RespondResult> {
+  async respond(
+    scene: Scene,
+    utterance: string,
+    turns?: ConversationTurn[],
+  ): Promise<RespondResult> {
     try {
       const prompt = [
         "You are the NPC in this scene, replying to a beginner English learner.",
         this.sceneContext(scene),
-        `The learner said: "${utterance}"`,
+        "Conversation so far:",
+        this.historyLines(turns),
+        `The learner just said: "${utterance}"`,
         "Reply in character with ONE short, natural, friendly English sentence (npcReply).",
         "You may charitably complete a fragmentary utterance from context.",
         "If you completed/guessed anything, describe briefly in Japanese what you assumed (completionNote); otherwise set completionNote to null.",
@@ -189,6 +232,7 @@ export class GeminiProvider implements AiProvider {
         "and naturally enough for this scene that no rewording is needed.",
         "Judge communicative adequacy only — NEVER guess or decide the learner's intention.",
         "If adequate, give one short, warm Japanese sentence celebrating it (adequacyNote); otherwise null.",
+        "Set done=true ONLY when this exchange has naturally concluded (the scene's goal is reached or the NPC would end the conversation).",
         "NEVER correct, teach, or coach the learner in the reply.",
       ].join("\n");
       const raw = await this.generate(prompt, RESPOND_SCHEMA);
@@ -204,9 +248,10 @@ export class GeminiProvider implements AiProvider {
         adequacyNote: parsed.adequate
           ? (parsed.adequacyNote ?? "そのひとことで、ちゃんと伝わりました。")
           : null,
+        done: parsed.done,
       };
     } catch {
-      return this.fallback.respond(scene, utterance);
+      return this.fallback.respond(scene, utterance, turns);
     }
   }
 

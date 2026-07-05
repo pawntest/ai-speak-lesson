@@ -111,21 +111,22 @@ export default function StuckHelpOverlay({
             {options && (
               <div className="intent-options" role="group" aria-label="Intentions">
                 {options.map((option) => (
-                  <button
-                    key={option.textEn}
-                    type="button"
-                    className="intent-option"
-                    disabled={busy}
-                    onClick={() => onPick(option.textEn)}
-                  >
-                    <span className="intent-option-icon" aria-hidden>
-                      {option.icon}
-                    </span>
-                    <span className="intent-option-en" lang="en">
-                      {option.textEn}
-                    </span>
+                  <div key={option.textEn} className="intent-option">
+                    <button
+                      type="button"
+                      className="intent-option-pick"
+                      disabled={busy}
+                      onClick={() => onPick(option.textEn)}
+                    >
+                      <span className="intent-option-icon" aria-hidden>
+                        {option.icon}
+                      </span>
+                      <span className="intent-option-en" lang="en">
+                        {option.textEn}
+                      </span>
+                    </button>
                     <JaAssist ja={option.textJa} label={option.textEn} />
-                  </button>
+                  </div>
                 ))}
               </div>
             )}

@@ -11,6 +11,7 @@ import SceneFlow from "./screens/SceneFlow";
 import CollectionScreen from "./screens/CollectionScreen";
 import CardDetailScreen from "./screens/CardDetailScreen";
 import ProScreen from "./screens/ProScreen";
+import { JaAssistProvider, JaAssistHeaderToggle } from "./components/JaAssist";
 import "./styles.css";
 
 type Screen =
@@ -43,7 +44,9 @@ export default function App() {
   const inScene = screen.name === "scene" || screen.name === "card";
 
   return (
+    <JaAssistProvider cards={cards}>
     <div className="app">
+      <JaAssistHeaderToggle />
       {screen.name === "today" && (
         <TodayScreen
           scenes={scenes}
@@ -84,9 +87,9 @@ export default function App() {
             return (
               <div className="screen">
                 <div className="empty-state">
-                  <p>カードが見つかりませんでした。</p>
+                  <p>Card not found.</p>
                   <button type="button" className="primary-btn" onClick={() => setScreen({ name: "collection" })}>
-                    コレクションへ
+                    Go to Cards
                   </button>
                 </div>
               </div>
@@ -111,23 +114,24 @@ export default function App() {
       )}
 
       {!inScene && screen.name !== "pro" && (
-        <nav className="bottom-nav" aria-label="メイン">
+        <nav className="bottom-nav" aria-label="Main">
           <button
             type="button"
             className={screen.name === "today" ? "nav-tab nav-on" : "nav-tab"}
             onClick={() => setScreen({ name: "today" })}
           >
-            <span aria-hidden>🎬</span> 今日
+            <span aria-hidden>🎬</span> Today
           </button>
           <button
             type="button"
             className={screen.name === "collection" ? "nav-tab nav-on" : "nav-tab"}
             onClick={() => setScreen({ name: "collection" })}
           >
-            <span aria-hidden>🗂</span> カード{cards.length > 0 ? ` ${cards.length}` : ""}
+            <span aria-hidden>🗂</span> Cards{cards.length > 0 ? ` ${cards.length}` : ""}
           </button>
         </nav>
       )}
     </div>
+    </JaAssistProvider>
   );
 }
