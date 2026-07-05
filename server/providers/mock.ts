@@ -62,6 +62,28 @@ interface FixtureAttempt {
   reason_ja?: string;
 }
 
+/**
+ * D11 seam: the client sends the option's textEn as the intent, while fixture
+ * variants are keyed by the JA selected_intent. A variant matches when the
+ * chosen intent equals its selected_intent OR the text_en of the option whose
+ * text_ja is that selected_intent.
+ */
+function intentMatchesVariant(attempt: FixtureAttempt, variantIntentJa: string, chosen: string): boolean {
+  const wanted = chosen.trim();
+  if (wanted === variantIntentJa.trim()) return true;
+  for (const option of attempt.intent_options ?? []) {
+    if (
+      typeof option.text_ja === "string" &&
+      option.text_ja.trim() === variantIntentJa.trim() &&
+      typeof option.text_en === "string" &&
+      option.text_en.trim() === wanted
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function findAttempt(sceneId: string, utterance: string): FixtureAttempt | null {
   const scenario = loadRawScenarios().scenarios.find((s) => s.id === sceneId);
   if (!scenario) return null;
@@ -368,8 +390,9 @@ export class MockProvider implements AiProvider {
   improve(scene: Scene, utterance: string, intent: string): Promise<Improvement> {
     const attempt = findAttempt(scene.id, utterance);
     if (attempt) {
-      const wanted = intent.trim();
-      const hit = attemptVariants(attempt).find((v) => v.selected_intent.trim() === wanted);
+      const hit = attemptVariants(attempt).find((v) =>
+        intentMatchesVariant(attempt, v.selected_intent, intent),
+      );
       if (hit) {
         return Promise.resolve({
           originalUtterance: utterance,
@@ -483,10 +506,10 @@ export class MockProvider implements AiProvider {
     //    scene (word overlap, not string equality).
     const scenario = loadRawScenarios().scenarios.find((s) => s.id === scene.id);
     if (scenario) {
-      const wanted = intent.trim();
       for (const raw of scenario.mock_attempts) {
-        for (const variant of attemptVariants(raw as FixtureAttempt)) {
-          if (variant.selected_intent.trim() !== wanted) continue;
+        const attempt = raw as FixtureAttempt;
+        for (const variant of attemptVariants(attempt)) {
+          if (!intentMatchesVariant(attempt, variant.selected_intent, intent)) continue;
           const reference = normalizeUtterance(variant.improved_utterance);
           if (reference && tokenOverlapRatio(reference, norm) >= 0.6) return true;
         }

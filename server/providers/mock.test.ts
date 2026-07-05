@@ -107,6 +107,22 @@ describe("MockProvider intent options (D11 object shape)", () => {
   });
 });
 
+describe("MockProvider intent seam: textEn from the client hits fixtures (D11)", () => {
+  const provider = new MockProvider();
+
+  it("improve matches a fixture variant via the option's textEn", async () => {
+    const viaEn = await provider.improve(cafe, "Coffee.", "I wanted to order coffee");
+    expect(viaEn.improvedUtterance).toBe("I'd like a coffee.");
+    const viaJa = await provider.improve(cafe, "Coffee.", "コーヒーを注文したかった");
+    expect(viaJa.improvedUtterance).toBe("I'd like a coffee.");
+  });
+
+  it("retry evaluation recognizes the intent given as textEn", async () => {
+    const result = await provider.evaluateRetry(cafe, "I wanted to order coffee", "I'd like a coffee.");
+    expect(result.communicated).toBe(true);
+  });
+});
+
 describe("MockProvider utterance-aware options (発話対応)", () => {
   const provider = new MockProvider();
 
