@@ -82,3 +82,18 @@ User directive overrides the contract's "no payment" scope item. Design in docs/
 - One WebGLRenderer, two scissored viewports: main = FPV (体感), top-right wipe = third person incl. learner avatar (英文を考える視点). Tap wipe to enlarge/shrink; wipe z-index 7 keeps it tappable under the NPC bubble.
 - prefers-reduced-motion → static frames, no RAF loop. No WebGL → automatic fallback to the 2D emoji stage (kept intact).
 - Known trap fixed: back wall must sit at floor-center − depth/2 (was hiding NPC/props in both views).
+
+## D11 — EN-first direct acquisition (user feedback 2026-07-05, frozen contract)
+Goal: learn concepts → English directly, minimal L1 routing (Duolingo-style: meaning via icons/context, i+1 simple English, recognition before production, spaced repetition = existing mastery stages).
+- IntentOption = { textEn (≤6 A1 words, names the INTENTION — never a rewrite of the learner's words), textJa, icon }. IntentOptionsResult.options: IntentOption[] (BREAKING — all layers updated together).
+- Improvement gains meaningEn/reasonEn (simple A1 English, the primary explanation); Ja fields stay as tap-reveal assist that fades with mastery.
+- UI chrome: simple English + icons primary; Japanese only behind tap-reveal「🇯🇵」assist; assist auto-fades as average mastery rises.
+
+## D12 — Multi-turn conversation + stuck-help rescue (frozen contract)
+- ConversationTurn { speaker: "learner"|"npc", text }. /api/respond body gains turns?: ConversationTurn[]; RespondResult gains done: boolean (exchange naturally concluded). Mock: deterministic per-scene scripted follow-ups keyed by turns.length; adequate ⇒ done.
+- Conversation continues in SceneFlow until done; reflection is reachable anytime.
+- Stuck-help: right-side overlay ("What did you want to say?") → contextual options (turns passed to getIntentOptions) or voice/text input → improved expression shown → auto-saved as rescue card: Card.via="rescue" + contextNote (the NPC line of that moment). Collection lists rescue cards with their scene. Rescue selection dispatches the same INTENT_SELECTED path — A2 (no improvement before intent) holds.
+
+## D13 — 3D persons + Gemini option quality
+- PropSpec kind "person": procedural low-poly human (sphere head + cylinder body/arms, role-colored outfit, idle "breathe"|"walk"), replaces people-emoji in all five scenes; object emoji stay.
+- Gemini intent-options prompt conditioned on scene + conversation history + latest utterance; outputs {textEn,textJa,icon} 3–5 via responseSchema; forbidden: ranking, correct-marking, any rewrite/correction of the learner's utterance. respond prompt gains history + "done=true only when naturally concluded". All zod-validated with mock fallback.

@@ -14,9 +14,21 @@ export interface Scene {
   npcOpening: string | null;
 }
 
+/**
+ * One candidate intention (D11: EN-first, JA is tap-reveal assist).
+ * textEn NAMES the intention in ≤6 simple A1 words — it is never a rewrite
+ * or correction of the learner's utterance.
+ */
+export interface IntentOption {
+  textEn: string;
+  textJa: string;
+  /** One emoji that pictures the intention (meaning without translation). */
+  icon: string;
+}
+
 export interface IntentOptionsResult {
-  /** 3–5 neutral Japanese options; no ranking, no "correct" marker. Free text is implicit in the UI. */
-  options: string[];
+  /** 3–5 neutral options; no ranking, no "correct" marker. Free text is implicit in the UI. */
+  options: IntentOption[];
 }
 
 export interface Improvement {
@@ -25,10 +37,20 @@ export interface Improvement {
   improvedUtterance: string;
   /** Exactly one primary semantic chunk (substring of improvedUtterance). */
   primaryDiff: string;
-  /** What the chunk means (JA). Distinct from reasonJa. */
+  /** What the chunk means — simple A1 English (D11 primary explanation). */
+  meaningEn: string;
+  /** Why it fits this scene — simple A1 English (D11 primary explanation). */
+  reasonEn: string;
+  /** What the chunk means (JA assist, tap-reveal). Distinct from reasonJa. */
   meaningJa: string;
-  /** Why it fits this scene (JA). Distinct from meaningJa. */
+  /** Why it fits this scene (JA assist, tap-reveal). Distinct from meaningJa. */
   reasonJa: string;
+}
+
+/** One line of the ongoing scene conversation (D12 multi-turn). */
+export interface ConversationTurn {
+  speaker: "learner" | "npc";
+  text: string;
 }
 
 /** D5: 0 JA shown; 1 JA collapsed; 2 EN + scene only; 3 scene only. */
@@ -47,8 +69,15 @@ export interface Card {
   selectedIntent: string;
   improvedUtterance: string;
   primaryDiff: string;
+  /** Simple-English explanations (D11 primary); may be empty on legacy cards. */
+  meaningEn?: string;
+  reasonEn?: string;
   meaningJa: string;
   reasonJa: string;
+  /** D12: "rescue" = saved from the stuck-help overlay (困った単語リスト). */
+  via?: "diff" | "rescue";
+  /** The moment it was needed (e.g. the NPC line the learner was stuck on). */
+  contextNote?: string;
   masteryStage: MasteryStage;
   reviewHistory: ReviewEntry[];
   createdAt: string; // ISO timestamp
@@ -64,13 +93,15 @@ export interface RespondResult {
   npcReply: string | null;
   completionNote: string | null;
   /**
-   * True when the first utterance already communicates well in this scene —
+   * True when the utterance already communicates well in this scene —
    * the UI then celebrates instead of forcing intention selection.
    * Judges communicative adequacy only; never decides the user's intention.
    */
   adequate: boolean;
-  /** Warm JA note shown when adequate (null otherwise). */
+  /** Warm note shown when adequate (null otherwise). */
   adequacyNote: string | null;
+  /** D12: true when this exchange has naturally concluded (scene goal reached). */
+  done: boolean;
 }
 
 /* ----------------------------------------------------------------------------
@@ -78,8 +109,11 @@ export interface RespondResult {
  * ------------------------------------------------------------------------- */
 
 export interface IntentOptionProvider {
-  /** Returns 3–5 neutral JA options. MUST NOT include or imply any improvement. */
-  getIntentOptions(scene: Scene, utterance: string): Promise<IntentOptionsResult>;
+  /**
+   * Returns 3–5 neutral options conditioned on the utterance and (when
+   * provided) the conversation so far. MUST NOT include or imply any improvement.
+   */
+  getIntentOptions(scene: Scene, utterance: string, turns?: ConversationTurn[]): Promise<IntentOptionsResult>;
 }
 
 export interface CoachProvider {
