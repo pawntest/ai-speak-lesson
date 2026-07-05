@@ -3,6 +3,7 @@
  * All functions throw ApiError on non-2xx responses.
  */
 import type {
+  ConversationTurn,
   Improvement,
   IntentOptionsResult,
   RespondResult,
@@ -109,12 +110,20 @@ export function fetchScenes(): Promise<Scene[]> {
   return request<Scene[]>("/api/scenes");
 }
 
-export function respond(sceneId: string, utterance: string): Promise<RespondResult> {
-  return post<RespondResult>("/api/respond", { sceneId, utterance });
+export function respond(
+  sceneId: string,
+  utterance: string,
+  turns?: ConversationTurn[],
+): Promise<RespondResult> {
+  return post<RespondResult>("/api/respond", { sceneId, utterance, ...(turns ? { turns } : {}) });
 }
 
-export function fetchIntentOptions(sceneId: string, utterance: string): Promise<IntentOptionsResult> {
-  return post<IntentOptionsResult>("/api/intent-options", { sceneId, utterance });
+export function fetchIntentOptions(
+  sceneId: string,
+  utterance: string,
+  turns?: ConversationTurn[],
+): Promise<IntentOptionsResult> {
+  return post<IntentOptionsResult>("/api/intent-options", { sceneId, utterance, ...(turns ? { turns } : {}) });
 }
 
 export function improve(sceneId: string, utterance: string, intent: string): Promise<Improvement> {

@@ -5,9 +5,12 @@
  * Adding a new 3D scene is ONE entry here; unknown scene ids get a synthesized
  * generic spec from location/visualCues, so every scene always renders.
  *
- * Environment (floor/walls/furniture) is real geometry; characters and small
- * objects are emoji billboards placed in 3D space — this keeps the warm,
- * crafted look of the product while giving true first-person depth.
+ * Environment (floor/walls/furniture) is real geometry; small objects (cups,
+ * plates, signs, plants, luggage, steam) are emoji billboards. People
+ * (customers, staff, passersby, the learner's own avatar) are procedural
+ * low-poly 3D humans (D13) — this keeps the warm, crafted look of the
+ * product while giving true first-person depth and letting characters feel
+ * present rather than flat.
  */
 
 export interface Vec3 {
@@ -18,13 +21,28 @@ export interface Vec3 {
 
 export type PropAnim = "bob" | "rise" | "walk" | "sway" | null;
 
+/** How a procedural person idles while standing at their spot. */
+export type PersonIdle = "breathe" | "walk";
+
+/** Shared appearance fields for any procedural human (prop, npc, or avatar). */
+export interface PersonAppearance {
+  /** Free label (e.g. "cashier", "receptionist") — may hint accessories (chef/cook → hat). */
+  role?: string;
+  skinTone?: string;
+  outfitColor: string;
+  /** Apron / vest / hat-band accent color. */
+  accentColor?: string;
+  /** Y rotation radians; 0 = facing -z (into the room, matching camera default). */
+  facing?: number;
+}
+
 export interface PropSpec {
-  kind: "emoji" | "box" | "textboard";
+  kind: "emoji" | "box" | "textboard" | "person";
   /** Emoji glyph (kind=emoji) or board lines (kind=textboard). */
   glyph?: string;
   lines?: string[];
   position: Vec3;
-  /** World size: emoji sprite height / box [w,h,d] via size+depth. */
+  /** World size: emoji sprite height / box [w,h,d] via size+depth / person standing height. */
   size: number;
   depth?: number;
   width?: number;
@@ -36,6 +54,14 @@ export interface PropSpec {
   walkAmp?: number;
   /** Visible only in the third-person (PiP) view. */
   thirdOnly?: boolean;
+  /** kind="person" appearance. */
+  role?: string;
+  skinTone?: string;
+  outfitColor?: string;
+  accentColor?: string;
+  facing?: number;
+  /** kind="person" idle animation (independent of the positional `anim`). */
+  idle?: PersonIdle;
 }
 
 export interface SceneSpec3D {
@@ -53,17 +79,27 @@ export interface SceneSpec3D {
     wallHeight?: number;
   };
   props: PropSpec[];
-  npc: {
-    glyph: string;
-    position: Vec3;
-    size: number;
-    anim: PropAnim;
-  } | null;
+  npc:
+    | (PersonAppearance & {
+        position: Vec3;
+        size: number;
+        anim: PropAnim;
+        idle: PersonIdle;
+      })
+    | null;
   /** Learner avatar shown ONLY in the third-person wipe view. */
-  avatar: { glyph: string; size: number };
+  avatar: PersonAppearance & { size: number };
   fpv: { position: Vec3; lookAt: Vec3 };
   third: { position: Vec3; lookAt: Vec3 };
 }
+
+/** Neutral, reused across scenes so the learner's own look stays consistent. */
+const AVATAR: PersonAppearance & { size: number } = {
+  outfitColor: "#4a5568",
+  accentColor: "#3a4152",
+  skinTone: "#d9a878",
+  size: 1.75,
+};
 
 const CAFE: SceneSpec3D = {
   background: "#2a1d16",
@@ -78,10 +114,30 @@ const CAFE: SceneSpec3D = {
     { kind: "emoji", glyph: "☕", position: { x: 0.85, y: 1.32, z: -1.5 }, size: 0.4, appearAt: 0.9 },
     { kind: "emoji", glyph: "〜", position: { x: 0.85, y: 1.7, z: -1.5 }, size: 0.28, appearAt: 1.4, anim: "rise" },
     { kind: "emoji", glyph: "🧁", position: { x: 1.6, y: 1.32, z: -1.55 }, size: 0.38, appearAt: 1.1 },
-    { kind: "emoji", glyph: "🧍", position: { x: 1.1, y: 0.95, z: 3.4 }, size: 1.7, appearAt: 2.6, anim: "sway", thirdOnly: false },
+    // Another customer waiting behind the learner — mostly a third-view detail.
+    {
+      kind: "person",
+      position: { x: 1.1, y: 0, z: 3.4 },
+      size: 1.65,
+      appearAt: 2.6,
+      idle: "breathe",
+      outfitColor: "#5b7065",
+      skinTone: "#c98f5e",
+      facing: Math.PI * 0.15,
+    },
   ],
-  npc: { glyph: "🧑‍🍳", position: { x: 0, y: 1.65, z: -2.1 }, size: 1.9, anim: "bob" },
-  avatar: { glyph: "🧍", size: 1.8 },
+  npc: {
+    role: "cashier",
+    skinTone: "#dba97c",
+    outfitColor: "#f6f1e6",
+    accentColor: "#a8542f",
+    facing: Math.PI,
+    position: { x: 0, y: 0, z: -2.1 },
+    size: 1.78,
+    anim: "bob",
+    idle: "breathe",
+  },
+  avatar: AVATAR,
   fpv: { position: { x: 0, y: 1.55, z: 1.4 }, lookAt: { x: 0, y: 1.5, z: -2.1 } },
   third: { position: { x: 3.4, y: 2.4, z: 4.6 }, lookAt: { x: 0.1, y: 1.2, z: -0.6 } },
 };
@@ -100,17 +156,48 @@ const DINING: SceneSpec3D = {
     { kind: "emoji", glyph: "🥄", position: { x: 0.45, y: 1.0, z: 0.25 }, size: 0.3, appearAt: 0.9 },
     // Neighbor tables that DO get food — placed inside the FPV frame so the
     // contrast with the learner's empty plate is felt, not explained.
+    // Neighbors are seated: shorter standing height + the table box in front
+    // hides their legs, so only torso/head read as "seated" through the frame.
     { kind: "box", position: { x: -1.9, y: 0.45, z: -2.2 }, size: 0.9, width: 1.6, depth: 1.0, color: "#463225", appearAt: 0 },
-    { kind: "emoji", glyph: "🧑", position: { x: -2.45, y: 1.25, z: -2.4 }, size: 1.4, appearAt: 0.3 },
+    {
+      kind: "person",
+      position: { x: -2.45, y: 0, z: -2.4 },
+      size: 1.3,
+      appearAt: 0.3,
+      idle: "breathe",
+      outfitColor: "#6b4a3a",
+      skinTone: "#dba97c",
+      facing: Math.PI * 0.85,
+    },
     { kind: "emoji", glyph: "🍝", position: { x: -1.7, y: 1.1, z: -2.2 }, size: 0.45, appearAt: 1.3 },
     { kind: "box", position: { x: 2.0, y: 0.45, z: -2.6 }, size: 0.9, width: 1.6, depth: 1.0, color: "#463225", appearAt: 0 },
-    { kind: "emoji", glyph: "👩", position: { x: 2.55, y: 1.25, z: -2.8 }, size: 1.4, appearAt: 0.6 },
+    {
+      kind: "person",
+      position: { x: 2.55, y: 0, z: -2.8 },
+      size: 1.3,
+      appearAt: 0.6,
+      idle: "breathe",
+      outfitColor: "#7a3b52",
+      skinTone: "#c98f5e",
+      facing: Math.PI * 1.15,
+    },
     { kind: "emoji", glyph: "🍛", position: { x: 1.8, y: 1.1, z: -2.6 }, size: 0.45, appearAt: 2.5 },
     // The server passing by — the short window to call out.
-    { kind: "emoji", glyph: "🚶", position: { x: 0, y: 1.3, z: -2.6 }, size: 1.6, appearAt: 0.2, anim: "walk", walkAmp: 3.2 },
+    {
+      kind: "person",
+      position: { x: 0, y: 0, z: -2.6 },
+      size: 1.72,
+      appearAt: 0.2,
+      anim: "walk",
+      walkAmp: 3.2,
+      idle: "walk",
+      outfitColor: "#2f3b4a",
+      accentColor: "#c9a86a",
+      skinTone: "#dba97c",
+    },
   ],
   npc: null,
-  avatar: { glyph: "🧍", size: 1.8 },
+  avatar: AVATAR,
   fpv: { position: { x: 0, y: 1.5, z: 2.0 }, lookAt: { x: 0, y: 0.95, z: -2.4 } },
   third: { position: { x: 4.0, y: 2.6, z: 4.4 }, lookAt: { x: 0, y: 1.0, z: -0.4 } },
 };
@@ -127,8 +214,18 @@ const SERVICE: SceneSpec3D = {
     { kind: "emoji", glyph: "🧾", position: { x: 0.8, y: 1.5, z: -1.6 }, size: 0.45, appearAt: 0.9, anim: "sway" },
     { kind: "emoji", glyph: "🛒", position: { x: -2.4, y: 0.8, z: -0.5 }, size: 1.0, appearAt: 0.4 },
   ],
-  npc: { glyph: "🧑‍💼", position: { x: 0, y: 1.65, z: -2.0 }, size: 1.9, anim: "bob" },
-  avatar: { glyph: "🧍", size: 1.8 },
+  npc: {
+    role: "clerk",
+    skinTone: "#c98f5e",
+    outfitColor: "#1c2b4a",
+    accentColor: "#c9a86a",
+    facing: Math.PI,
+    position: { x: 0, y: 0, z: -2.0 },
+    size: 1.78,
+    anim: "bob",
+    idle: "breathe",
+  },
+  avatar: AVATAR,
   fpv: { position: { x: 0, y: 1.55, z: 1.4 }, lookAt: { x: 0, y: 1.5, z: -2.0 } },
   third: { position: { x: -3.4, y: 2.4, z: 4.4 }, lookAt: { x: 0, y: 1.2, z: -0.6 } },
 };
@@ -148,8 +245,18 @@ const STREET: SceneSpec3D = {
     { kind: "textboard", lines: ["🚉 ?"], position: { x: 2.2, y: 2.6, z: -11 }, size: 1.1, width: 1.3, color: "#1f2739", appearAt: 1.2 },
     { kind: "emoji", glyph: "🗺️", position: { x: -0.55, y: 1.05, z: 0.7 }, size: 0.5, appearAt: 0.6, thirdOnly: true },
   ],
-  npc: { glyph: "🚶", position: { x: 0.4, y: 1.6, z: -3.2 }, size: 1.8, anim: "bob" },
-  avatar: { glyph: "🧍", size: 1.8 },
+  npc: {
+    role: "passerby",
+    skinTone: "#e0b48c",
+    outfitColor: "#405066",
+    accentColor: "#8a3b3b",
+    facing: Math.PI, // faces the learner
+    position: { x: 0.4, y: 0, z: -3.2 },
+    size: 1.72,
+    anim: null,
+    idle: "walk",
+  },
+  avatar: AVATAR,
   fpv: { position: { x: 0, y: 1.55, z: 1.2 }, lookAt: { x: 0.3, y: 1.4, z: -4 } },
   third: { position: { x: 3.6, y: 2.8, z: 4.8 }, lookAt: { x: 0.2, y: 1.2, z: -1.2 } },
 };
@@ -168,8 +275,18 @@ const HOTEL: SceneSpec3D = {
     { kind: "emoji", glyph: "🪴", position: { x: -3.2, y: 1.0, z: -1.0 }, size: 1.4, appearAt: 0.5 },
     { kind: "emoji", glyph: "🧳", position: { x: 0.9, y: 0.55, z: 1.1 }, size: 0.9, appearAt: 0.8 },
   ],
-  npc: { glyph: "💁", position: { x: 0, y: 1.7, z: -2.2 }, size: 1.9, anim: "bob" },
-  avatar: { glyph: "🧍", size: 1.8 },
+  npc: {
+    role: "receptionist",
+    skinTone: "#dba97c",
+    outfitColor: "#5a3d63",
+    accentColor: "#d4a24c",
+    facing: Math.PI,
+    position: { x: 0, y: 0, z: -2.2 },
+    size: 1.78,
+    anim: "bob",
+    idle: "breathe",
+  },
+  avatar: AVATAR,
   fpv: { position: { x: 0, y: 1.55, z: 1.5 }, lookAt: { x: 0, y: 1.5, z: -2.2 } },
   third: { position: { x: -3.6, y: 2.5, z: 4.6 }, lookAt: { x: 0, y: 1.2, z: -0.6 } },
 };
@@ -214,8 +331,20 @@ function genericSpec(location: string, visualCues: string[], npcPresent: boolean
       size: 0.8,
       appearAt: 0.4 + i * 0.7,
     })),
-    npc: npcPresent ? { glyph: "🧑", position: { x: 0, y: 1.6, z: -2.2 }, size: 1.9, anim: "bob" } : null,
-    avatar: { glyph: "🧍", size: 1.8 },
+    npc: npcPresent
+      ? {
+          role: "attendant",
+          skinTone: "#dba97c",
+          outfitColor: "#5b6b73",
+          accentColor: "#8a9aa3",
+          facing: Math.PI,
+          position: { x: 0, y: 0, z: -2.2 },
+          size: 1.78,
+          anim: "bob",
+          idle: "breathe",
+        }
+      : null,
+    avatar: AVATAR,
     fpv: { position: { x: 0, y: 1.55, z: 1.4 }, lookAt: { x: 0, y: 1.4, z: -2.2 } },
     third: { position: { x: 3.4, y: 2.5, z: 4.6 }, lookAt: { x: 0, y: 1.2, z: -0.6 } },
   };

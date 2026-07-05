@@ -53,3 +53,13 @@ export function reviewQueue(cards: Card[]): Card[] {
     return a.createdAt.localeCompare(b.createdAt);
   });
 }
+
+/**
+ * D11 global JA-assist fade: average masteryStage of all saved cards.
+ * No cards yet → 0 (fresh learners keep JA assist on by default).
+ */
+export function averageMasteryStage(cards: Card[]): number {
+  if (cards.length === 0) return 0;
+  const total = cards.reduce((sum, c) => sum + c.masteryStage, 0);
+  return total / cards.length;
+}

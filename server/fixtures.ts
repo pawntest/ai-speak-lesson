@@ -20,6 +20,8 @@ export interface RawScenario {
     felt_targets_for_testing_only?: string[];
     [key: string]: unknown;
   };
+  /** D12: scripted NPC continuation lines, keyed by learner turn count. */
+  follow_up_turns?: string[];
   /** Loosely typed on purpose; shape varies per scenario (variants etc.). */
   mock_attempts: Array<Record<string, unknown>>;
   [key: string]: unknown;

@@ -23,18 +23,24 @@
           "desire to order"
         ]
       },
+      "follow_up_turns": [
+        "What size would you like?",
+        "That's 3.50. Cash or card?"
+      ],
       "mock_attempts": [
         {
           "user_utterance": "Coffee.",
           "intent_options": [
-            "コーヒーを注文したかった",
-            "少し待ってほしかった",
-            "おすすめを聞きたかった",
-            "サイズを確認したかった"
+            { "text_en": "I wanted to order coffee", "text_ja": "コーヒーを注文したかった", "icon": "☕" },
+            { "text_en": "I wanted them to wait", "text_ja": "少し待ってほしかった", "icon": "⏳" },
+            { "text_en": "I wanted a recommendation", "text_ja": "おすすめを聞きたかった", "icon": "💡" },
+            { "text_en": "I wanted to check the size", "text_ja": "サイズを確認したかった", "icon": "📏" }
           ],
           "selected_intent": "コーヒーを注文したかった",
           "improved_utterance": "I'd like a coffee.",
           "primary_diff": "I'd like a",
+          "meaning_en": "This means 'I would like' politely.",
+          "reason_en": "It shows you are ordering coffee, not just naming it.",
           "meaning_ja": "自分の希望を丁寧に伝える",
           "reason_ja": "商品名だけでなく、コーヒーを希望して注文していることを伝えるため"
         }
@@ -62,20 +68,26 @@
           "need to get attention"
         ]
       },
+      "follow_up_turns": [
+        "Let me check with the kitchen.",
+        "Sorry about that — it's on its way now."
+      ],
       "mock_attempts": [
         {
           "user_utterance": "Order?",
           "intent_options": [
-            "注文状況を確認したかった",
-            "店員に気付いてほしかった",
-            "急いでいると伝えたかった",
-            "注文をキャンセルしたかった"
+            { "text_en": "I wanted to check my order", "text_ja": "注文状況を確認したかった", "icon": "🔍" },
+            { "text_en": "I wanted them to notice me", "text_ja": "店員に気付いてほしかった", "icon": "🙋" },
+            { "text_en": "I wanted to hurry them up", "text_ja": "急いでいると伝えたかった", "icon": "⏱️" },
+            { "text_en": "I wanted to cancel it", "text_ja": "注文をキャンセルしたかった", "icon": "❌" }
           ],
           "variants": [
             {
               "selected_intent": "注文状況を確認したかった",
               "improved_utterance": "My order?",
               "primary_diff": "My",
+              "meaning_en": "Adding 'my' shows whose order you mean.",
+              "reason_en": "It tells the staff exactly what you are asking about.",
               "meaning_ja": "自分の注文だと示す",
               "reason_ja": "何について確認したいのかを店員に伝えるため"
             },
@@ -83,6 +95,8 @@
               "selected_intent": "店員に気付いてほしかった",
               "improved_utterance": "Excuse me.",
               "primary_diff": "Excuse me",
+              "meaning_en": "This politely gets someone's attention.",
+              "reason_en": "You must be noticed before you can ask your question.",
               "meaning_ja": "相手の注意を丁寧に向ける",
               "reason_ja": "注文内容より先に、通り過ぎる店員へ声を掛ける必要があるため"
             }
@@ -111,18 +125,24 @@
           "pressure to answer"
         ]
       },
+      "follow_up_turns": [
+        "Sure — here's your receipt.",
+        "Have a great day!"
+      ],
       "mock_attempts": [
         {
           "user_utterance": "Again?",
           "intent_options": [
-            "もう一度言ってほしかった",
-            "ゆっくり話してほしかった",
-            "最後の単語だけ確認したかった",
-            "考える時間がほしかった"
+            { "text_en": "I wanted them to repeat", "text_ja": "もう一度言ってほしかった", "icon": "🔁" },
+            { "text_en": "I wanted them to speak slowly", "text_ja": "ゆっくり話してほしかった", "icon": "🐢" },
+            { "text_en": "I wanted to check one word", "text_ja": "最後の単語だけ確認したかった", "icon": "❓" },
+            { "text_en": "I wanted more time to think", "text_ja": "考える時間がほしかった", "icon": "🤔" }
           ],
           "selected_intent": "もう一度言ってほしかった",
           "improved_utterance": "Could you say that again?",
           "primary_diff": "Could you say that",
+          "meaning_en": "This politely asks someone to repeat everything.",
+          "reason_en": "It helps you hear the whole missed sentence again.",
           "meaning_ja": "相手に同じ内容をもう一度言ってもらう",
           "reason_ja": "聞き取れなかった内容全体を丁寧に繰り返してもらうため"
         }
@@ -150,20 +170,26 @@
           "need for directions"
         ]
       },
+      "follow_up_turns": [
+        "Go straight, then turn left.",
+        "You can't miss it from there."
+      ],
       "mock_attempts": [
         {
           "user_utterance": "Station?",
           "intent_options": [
-            "駅への行き方を知りたかった",
-            "相手を呼び止めたかった",
-            "駅が近いか確認したかった",
-            "地図で示してほしかった"
+            { "text_en": "I wanted to know the way", "text_ja": "駅への行き方を知りたかった", "icon": "🚉" },
+            { "text_en": "I wanted to stop them", "text_ja": "相手を呼び止めたかった", "icon": "🙋" },
+            { "text_en": "I wanted to check it's near", "text_ja": "駅が近いか確認したかった", "icon": "📍" },
+            { "text_en": "I wanted to see a map", "text_ja": "地図で示してほしかった", "icon": "🗺️" }
           ],
           "variants": [
             {
               "selected_intent": "駅への行き方を知りたかった",
               "improved_utterance": "How can I get to the station?",
               "primary_diff": "How can I get to",
+              "meaning_en": "This asks how to get somewhere.",
+              "reason_en": "It shows you need directions, not just the place name.",
               "meaning_ja": "「どうやって〜へ行けますか」と道順をたずねる形",
               "reason_ja": "場所の名前だけでなく、行き方を教えてほしいのだと伝えるため"
             },
@@ -171,6 +197,8 @@
               "selected_intent": "相手を呼び止めたかった",
               "improved_utterance": "Excuse me.",
               "primary_diff": "Excuse me",
+              "meaning_en": "This politely stops someone to talk.",
+              "reason_en": "You need them to pause before you ask for directions.",
               "meaning_ja": "「すみません」と相手の注意を丁寧に向ける一言",
               "reason_ja": "道をたずねる前に、通り掛かる人に立ち止まってもらう必要があるため"
             }
@@ -200,18 +228,24 @@
           "desire to settle in"
         ]
       },
+      "follow_up_turns": [
+        "May I see your passport, please?",
+        "Here's your key — room 204."
+      ],
       "mock_attempts": [
         {
           "user_utterance": "Check in.",
           "intent_options": [
-            "チェックインの手続きをしたかった",
-            "予約を確認してほしかった",
-            "荷物を預けたかった",
-            "チェックイン時間を確認したかった"
+            { "text_en": "I wanted to check in", "text_ja": "チェックインの手続きをしたかった", "icon": "🏨" },
+            { "text_en": "I wanted to confirm booking", "text_ja": "予約を確認してほしかった", "icon": "📋" },
+            { "text_en": "I wanted to leave my bags", "text_ja": "荷物を預けたかった", "icon": "🧳" },
+            { "text_en": "I wanted to check the time", "text_ja": "チェックイン時間を確認したかった", "icon": "🕐" }
           ],
           "selected_intent": "チェックインの手続きをしたかった",
           "improved_utterance": "I'd like to check in.",
           "primary_diff": "I'd like to",
+          "meaning_en": "This means 'I would like to' politely.",
+          "reason_en": "It tells the front desk you want to start checking in.",
           "meaning_ja": "「〜したいです」と自分の用件を丁寧に伝える形",
           "reason_ja": "単語だけでなく、手続きを望んで申し出ているとフロントに伝えるため"
         }

@@ -5,6 +5,7 @@
  */
 import type {
   CoachProvider,
+  ConversationTurn,
   IntentOptionProvider,
   RespondResult,
   RetryEvaluator,
@@ -12,6 +13,11 @@ import type {
 } from "../../shared/types";
 
 export interface AiProvider extends IntentOptionProvider, CoachProvider, RetryEvaluator {
-  /** NPC reply with limited contextual completion. Never coaches. */
-  respond(scene: Scene, utterance: string): Promise<RespondResult>;
+  /**
+   * NPC reply with limited contextual completion. Never coaches.
+   * D12: `turns` is the conversation so far (learner + npc lines, NOT
+   * including `utterance`); drives the scripted multi-turn continuation and
+   * `done` (exchange naturally concluded).
+   */
+  respond(scene: Scene, utterance: string, turns?: ConversationTurn[]): Promise<RespondResult>;
 }
